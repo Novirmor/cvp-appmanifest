@@ -48,11 +48,14 @@ Recorded 2026-08-14. These decisions unblock repository creation and the
 
 ## ADR-005: Secrets in `v1alpha1`
 
-- **Decision:** `secretRef` is **included** in the `v1alpha1` schema using typed
-  references (`bws://<uuid>`), and `infra-ansible` **must** implement
-  controller-side resolution before the cutover.
+- **Decision:** stage-level `secrets` are **included** in the `v1alpha1`
+  schema using **opaque references**. The reference syntax and the secret
+  store are executor policy: `infra-ansible` defines, validates, and resolves
+  them (e.g. as Bitwarden secret ids) **before** the cutover.
+- The shared schema constrains references only to safe single-line
+  identifiers; it names no store and no scheme.
 - Until resolution + redaction tests are green, `infra-ansible` refuses any
-  deployment whose selected stage declares an unresolved `secretRef`.
+  deployment whose selected stage declares an unresolved secret.
 - Canonical JSON contains references, never resolved values.
 
 ## ADR-006: Canonical JSON
@@ -103,7 +106,7 @@ stages:
     target: { host: larry243 }
     environment:
       NGINX_PORT: { value: "8080" }
-      API_KEY:   { secretRef: bws://<uuid> }
+      API_KEY:   { secretRef: <reference> }
     route: { hostname: example.mgconsulting.io, exposure: public }
 ```
 

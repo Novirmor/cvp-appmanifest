@@ -62,7 +62,7 @@ stages:
       host: edge-1
     secrets:
       postgres_password:
-        secretRef: bws://<uuid>
+        secretRef: <reference>
     services:
       postgres:
         exposure: internal
@@ -92,10 +92,12 @@ stages:
   sibling services of the same application). A hostname is required iff the
   exposure is routed; `httpPort` is required on any service routed in some
   stage.
-- **secrets** — stage-level material resolved by the controller from typed
-  references (`bws://<uuid>`). Consumed two ways: as environment values
-  (`environment.KEY.secret`) and as Docker-secrets-style files mounted at
-  `/run/secrets/<name>` (`mounts`). Values never appear in manifests.
+- **secrets** — stage-level material referenced opaquely and resolved by the
+  controller. The reference syntax (e.g. a Bitwarden secret id) is executor
+  policy defined in `infra-ansible`, not part of this format. Consumed two
+  ways: as environment values (`environment.KEY.secret`) and as
+  Docker-secrets-style files mounted at `/run/secrets/<name>` (`mounts`).
+  Values never appear in manifests.
 - **volumes** — named persistent volumes attached to services at absolute
   container paths.
 - **Environment** — explicit per stage service; there is no inheritance.

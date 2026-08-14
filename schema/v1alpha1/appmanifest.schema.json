@@ -161,9 +161,11 @@
       "required": ["secretRef"],
       "properties": {
         "secretRef": {
-          "description": "Typed controller-resolved secret reference.",
+          "description": "Opaque secret reference. The controller (e.g. infra-ansible) defines the reference syntax and resolves it; the shared format only constrains it to a safe, single-line identifier.",
           "type": "string",
-          "pattern": "^bws://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
         }
       }
     },

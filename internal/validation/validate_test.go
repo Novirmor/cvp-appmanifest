@@ -110,6 +110,36 @@ stages:
 	}
 }
 
+func TestValidateSchemaSecretRefIsOpaque(t *testing.T) {
+	// The reference is store-agnostic: bare ids, URIs, and names are all
+	// valid shapes for the shared schema; the controller owns the syntax.
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  db:
+    source: {image: "postgres:17-alpine"}
+stages:
+  prod:
+    target: {host: edge-1}
+    secrets:
+      password:
+        secretRef: 01234567-89ab-cdef-0123-456789abcdef
+    services:
+      db:
+        exposure: internal
+        mounts:
+          - secret: password
+`)
+	diags := ValidateSchema(doc)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors for bare-id reference: %s", diags.Human())
+	}
+	if d := ValidateSemantic(doc); d.HasErrors() {
+		t.Fatalf("unexpected semantic errors: %s", d.Human())
+	}
+}
+
 func TestValidateSchemaUnsafeRevisionRejected(t *testing.T) {
 	doc := load(t, `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
