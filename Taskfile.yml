@@ -44,7 +44,7 @@ tasks:
             go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}}" \
             -o "dist/$name" ./cmd/appmanifest
         done
-        cp schema/v1alpha1/appmanifest.schema.json dist/deployment.schema.json
+        cp schema/v1alpha1/appmanifest.schema.json dist/appmanifest.schema.json
         (cd dist && sha256sum * > SHA256SUMS)
 
   release:
