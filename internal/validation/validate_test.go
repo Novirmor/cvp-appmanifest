@@ -124,7 +124,7 @@ stages:
     target: {host: edge-1}
     secrets:
       password:
-        secretRef: 01234567-89ab-cdef-0123-456789abcdef
+        secretRef: example-secret-ref-1
     services:
       db:
         exposure: internal

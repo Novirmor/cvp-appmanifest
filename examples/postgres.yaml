@@ -20,9 +20,9 @@ stages:
       host: edge-1
     secrets:
       postgres_password:
-        secretRef: 01234567-89ab-cdef-0123-456789abcdef
+        secretRef: postgres-password-ref
       pgadmin_password:
-        secretRef: 01234567-89ab-cdef-0123-456789abcde0
+        secretRef: pgadmin-password-ref
     services:
       postgres:
         exposure: internal

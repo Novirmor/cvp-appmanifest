@@ -181,7 +181,7 @@
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
         },
         "exposure": {
-          "description": "public: routed on the public entrypoint. tailnet: routed on the tailnet entrypoint. internal: no route; reachable only from sibling services.",
+          "description": "public: reachable from the internet through the platform router. tailnet: reachable only from the private network. internal: not routed; reachable only from sibling services of the same application.",
           "enum": ["public", "tailnet", "internal"]
         },
         "hostname": {

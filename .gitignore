@@ -2,4 +2,3 @@
 /.task/
 /.venv/
 /dist/
-/.gitleaks-baseline.json

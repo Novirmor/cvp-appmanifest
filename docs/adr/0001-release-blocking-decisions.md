@@ -89,25 +89,43 @@ Recorded 2026-08-14. These decisions unblock repository creation and the
 
 ## ADR-009: v1alpha1 document shape
 
-Single Git-built container, one HTTP port, one route per stage instance.
-Namespaced fields (no longer flat):
+Multi-service applications: each service is a prebuilt image or a Git-built
+container; every stage places the complete application. Exposure is `public`,
+`tailnet`, or `internal`; secrets are stage-level opaque references consumed as
+env values or Docker-secrets-style file mounts.
 
 ```yaml
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: example-site
-source:
-  repository: https://github.com/MGconsulting/example-static-site.git
-  build: { context: ., dockerfile: Dockerfile }
-container:
-  httpPort: 8080
+services:
+  web:
+    source:
+      repository: https://github.com/example/static-site.git
+      build: { context: ., dockerfile: Dockerfile }
+    httpPort: 8080
+  db:
+    source: { image: "postgres:17-alpine" }
+    volumes:
+      - { name: data, path: /var/lib/postgresql/data }
+volumes:
+  data: {}
 stages:
   prod:
-    revision: <full-sha>
-    target: { host: larry243 }
-    environment:
-      NGINX_PORT: { value: "8080" }
-      API_KEY:   { secretRef: <reference> }
-    route: { hostname: example.mgconsulting.io, exposure: public }
+    target: { host: edge-1 }
+    secrets:
+      db_password:
+        secretRef: <reference>
+    services:
+      web:
+        revision: <full-sha>
+        exposure: public
+        hostname: app.example.com
+        environment:
+          NGINX_PORT: { value: "8080" }
+      db:
+        exposure: internal
+        environment:
+          POSTGRES_PASSWORD: { secret: db_password }
 ```
 
 Decisions left **outside** the shared schema (MGconsulting/executor policy):

@@ -87,11 +87,11 @@ stages:
   service (complete desired state; no partial applications).
 - **revision** — required per stage for repository-built services; forbidden
   for image services.
-- **exposure** — `public` (routed on the public entrypoint), `tailnet` (routed
-  on the tailnet entrypoint), or `internal` (no route; reachable only from
-  sibling services of the same application). A hostname is required iff the
-  exposure is routed; `httpPort` is required on any service routed in some
-  stage.
+- **exposure** — `public` (reachable from the internet through the platform
+  router), `tailnet` (reachable only from the private network), or `internal`
+  (not routed; reachable only from sibling services of the same application). A
+  hostname is required iff the exposure is routed; `httpPort` is required on
+  any service routed in some stage.
 - **secrets** — stage-level material referenced opaquely and resolved by the
   controller. The reference syntax (e.g. a Bitwarden secret id) is executor
   policy defined in `infra-ansible`, not part of this format. Consumed two

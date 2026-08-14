@@ -17,7 +17,7 @@ stages:
       host: edge-1
     secrets:
       rabbitmq_password:
-        secretRef: 01234567-89ab-cdef-0123-456789abcdef
+        secretRef: rabbitmq-password-ref
     services:
       rabbitmq:
         # One service, two planes: AMQP stays internal to sibling services,

@@ -18,7 +18,7 @@ tasks:
   security:
     desc: Scan Git history, GitHub Actions security posture, and Go dependencies
     cmds:
-      - gitleaks git --redact --no-banner .
+      - gitleaks git --redact --no-banner --baseline-path .gitleaks-baseline.json .
       - zizmor .github/workflows
       - govulncheck ./...
 
