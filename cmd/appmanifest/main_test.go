@@ -23,7 +23,7 @@ func TestRunUsage(t *testing.T) {
 
 func TestRunValidateValidFile(t *testing.T) {
 	path := writeTempYAML(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git
@@ -41,7 +41,7 @@ stages:
 }
 
 func TestRunValidateInvalidFile(t *testing.T) {
-	path := writeTempYAML(t, "apiVersion: deployment.mgconsulting.io/v9\nname: app\n")
+	path := writeTempYAML(t, "apiVersion: appmanifest.mgconsulting.io/v9\nname: app\n")
 	if code := run([]string{"validate", "--file", path}); code != exitInvalid {
 		t.Fatalf("validate exit = %d", code)
 	}
@@ -55,7 +55,7 @@ func TestRunValidateMissingArg(t *testing.T) {
 
 func TestRunNormalizeAppliesDefaults(t *testing.T) {
 	path := writeTempYAML(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git

@@ -1,4 +1,4 @@
-# deployment-spec
+# appmanifest
 
 Authoritative deployment-document format for MGconsulting: versioned schema,
 validation CLI, and conformance fixtures.
@@ -12,7 +12,7 @@ respectively.
 
 - `schema/v1alpha1/deployment.schema.json` — immutable v1 schema (embedded by
   the Go package; no copies).
-- `cmd/deployment-spec` — CLI entry point.
+- `cmd/appmanifest` — CLI entry point.
 - `internal/` — document decoding, normalization, validation, corpus checks,
   and diagnostics.
 - `examples/` — sanitized, generic example documents (neutral hosts and
@@ -22,10 +22,10 @@ respectively.
 ## CLI
 
 ```sh
-go run ./cmd/deployment-spec version
-go run ./cmd/deployment-spec validate --corpus examples
-go run ./cmd/deployment-spec validate --file examples/whoami.yaml --json
-go run ./cmd/deployment-spec normalize --file examples/whoami.yaml
+go run ./cmd/appmanifest version
+go run ./cmd/appmanifest validate --corpus examples
+go run ./cmd/appmanifest validate --file examples/whoami.yaml --json
+go run ./cmd/appmanifest normalize --file examples/whoami.yaml
 ```
 
 Exit codes: `0` valid, `1` validation errors, `2` usage or operational failure.
@@ -37,7 +37,7 @@ names and routed hostnames cannot be missed.
 ## Document contract (v1alpha1)
 
 ```yaml
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/MGconsulting/app.git

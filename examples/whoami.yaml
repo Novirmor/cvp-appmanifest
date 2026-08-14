@@ -1,4 +1,4 @@
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: whoami
 source:
   repository: https://github.com/traefik/whoami.git

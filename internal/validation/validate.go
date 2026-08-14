@@ -13,8 +13,8 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"github.com/MGconsulting/deployment-spec/internal/diagnostic"
-	v1alpha1 "github.com/MGconsulting/deployment-spec/schema/v1alpha1"
+	"github.com/MGconsulting/appmanifest/internal/diagnostic"
+	v1alpha1 "github.com/MGconsulting/appmanifest/schema/v1alpha1"
 )
 
 // printer formats schema error kinds deterministically.

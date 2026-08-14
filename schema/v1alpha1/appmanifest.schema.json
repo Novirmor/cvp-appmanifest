@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://spec.mgconsulting.io/deployment-spec/v1alpha1/deployment.schema.json",
+  "$id": "https://spec.mgconsulting.io/appmanifest/v1alpha1/appmanifest.schema.json",
   "title": "Deployment document v1alpha1",
   "type": "object",
   "additionalProperties": false,
   "required": ["apiVersion", "name", "source", "container", "stages"],
   "properties": {
     "apiVersion": {
-      "const": "deployment.mgconsulting.io/v1alpha1"
+      "const": "appmanifest.mgconsulting.io/v1alpha1"
     },
     "name": {
       "description": "Stable logical project identity. The filename is not identity.",

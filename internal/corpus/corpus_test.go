@@ -16,7 +16,7 @@ func writeFile(t *testing.T, dir, name, content string) string {
 }
 
 const validDoc = `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git

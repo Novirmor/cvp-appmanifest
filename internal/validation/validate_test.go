@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/MGconsulting/deployment-spec/internal/document"
-	v1alpha1 "github.com/MGconsulting/deployment-spec/schema/v1alpha1"
+	"github.com/MGconsulting/appmanifest/internal/document"
+	v1alpha1 "github.com/MGconsulting/appmanifest/schema/v1alpha1"
 )
 
 func load(t *testing.T, yaml string) map[string]any {
@@ -19,7 +19,7 @@ func load(t *testing.T, yaml string) map[string]any {
 
 func TestValidateSchemaValid(t *testing.T) {
 	doc := load(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git
@@ -40,7 +40,7 @@ stages:
 }
 
 func TestValidateSchemaUnsupportedAPIVersion(t *testing.T) {
-	doc := load(t, "apiVersion: deployment.mgconsulting.io/v9\nname: app\n")
+	doc := load(t, "apiVersion: appmanifest.mgconsulting.io/v9\nname: app\n")
 	diags := ValidateSchema(doc)
 	if !diags.HasErrors() {
 		t.Fatal("expected error for unsupported apiVersion")
@@ -52,7 +52,7 @@ func TestValidateSchemaUnsupportedAPIVersion(t *testing.T) {
 
 func TestValidateSchemaUnknownFieldRejected(t *testing.T) {
 	doc := load(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git
@@ -73,7 +73,7 @@ stages:
 
 func TestValidateSchemaBadPort(t *testing.T) {
 	doc := load(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git
@@ -93,7 +93,7 @@ stages:
 
 func TestValidateSchemaUnsafeRevisionRejected(t *testing.T) {
 	doc := load(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git
@@ -113,7 +113,7 @@ stages:
 
 func TestValidateSemanticDuplicateHostname(t *testing.T) {
 	doc := load(t, `
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 source:
   repository: https://github.com/example/app.git

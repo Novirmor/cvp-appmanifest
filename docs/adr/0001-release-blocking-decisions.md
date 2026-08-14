@@ -2,14 +2,14 @@
 
 Recorded 2026-08-14. These decisions unblock repository creation and the
 `v1alpha1` implementation. Each becomes an ADR in
-`deployment-spec/docs/adr/` once the repository exists.
+`appmanifest/docs/adr/` once the repository exists.
 
 ## ADR-001: Repository visibility and distribution
 
-- **Decision:** `MGconsulting/deployment-spec` is **private** initially.
+- **Decision:** `MGconsulting/appmanifest` is **private** initially.
 - Distribution is by GitHub Release from the private repository.
 - Local install: `mise` GitHub backend using `gh` credentials.
-- CI install: a GitHub App token scoped to exactly `deployment-spec`, provided
+- CI install: a GitHub App token scoped to exactly `appmanifest`, provided
   through the reusable lint/security workflows or a dedicated secret.
 - Artifacts are checksum-verified (`SHA256SUMS`).
 - Revisit public visibility after the secret-reference and routing model are
@@ -17,9 +17,9 @@ Recorded 2026-08-14. These decisions unblock repository creation and the
 
 ## ADR-002: Naming and licensing
 
-- Repository name: `deployment-spec`.
-- Go module path: `github.com/MGconsulting/deployment-spec`.
-- CLI binary name: `deployment-spec`.
+- Repository name: `appmanifest`.
+- Go module path: `github.com/MGconsulting/appmanifest`.
+- CLI binary name: `appmanifest`.
 - License: GPL-3.0-or-later (matches the MGconsulting collection ecosystem).
 
 ## ADR-003: YAML parsing contract
@@ -90,7 +90,7 @@ Single Git-built container, one HTTP port, one route per stage instance.
 Namespaced fields (no longer flat):
 
 ```yaml
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: example-site
 source:
   repository: https://github.com/MGconsulting/example-static-site.git

@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/MGconsulting/deployment-spec/internal/diagnostic"
-	"github.com/MGconsulting/deployment-spec/internal/document"
-	"github.com/MGconsulting/deployment-spec/internal/normalize"
-	"github.com/MGconsulting/deployment-spec/internal/validation"
+	"github.com/MGconsulting/appmanifest/internal/diagnostic"
+	"github.com/MGconsulting/appmanifest/internal/document"
+	"github.com/MGconsulting/appmanifest/internal/normalize"
+	"github.com/MGconsulting/appmanifest/internal/validation"
 )
 
 // MaxFiles bounds the number of documents per corpus.

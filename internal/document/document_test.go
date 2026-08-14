@@ -7,7 +7,7 @@ import (
 
 func TestDecodeValid(t *testing.T) {
 	doc, err := Decode([]byte(`
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
 port: 80
 `))

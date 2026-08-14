@@ -1,4 +1,4 @@
-apiVersion: deployment.mgconsulting.io/v1alpha1
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: static-site
 source:
   repository: https://github.com/example/static-site.git

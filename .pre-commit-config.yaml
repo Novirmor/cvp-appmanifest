@@ -33,6 +33,6 @@ repos:
         pass_filenames: false
       - id: corpus-validate
         name: corpus-validate
-        entry: sh -c 'go run ./cmd/deployment-spec validate --corpus examples'
+        entry: sh -c 'go run ./cmd/appmanifest validate --corpus examples'
         language: system
         pass_filenames: false

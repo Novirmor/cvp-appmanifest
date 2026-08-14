@@ -3,8 +3,8 @@ package v1alpha1
 
 import _ "embed"
 
-//go:embed deployment.schema.json
+//go:embed appmanifest.schema.json
 var Schema []byte
 
 // APIVersion is the exact apiVersion value this schema accepts.
-const APIVersion = "deployment.mgconsulting.io/v1alpha1"
+const APIVersion = "appmanifest.mgconsulting.io/v1alpha1"

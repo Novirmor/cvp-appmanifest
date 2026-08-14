@@ -1,4 +1,4 @@
-module github.com/MGconsulting/deployment-spec
+module github.com/MGconsulting/appmanifest
 
 go 1.26
 

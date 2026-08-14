@@ -23,9 +23,9 @@ tasks:
       - govulncheck ./...
 
   build:
-    desc: Build the deployment-spec CLI
+    desc: Build the appmanifest CLI
     cmds:
-      - go build -o dist/deployment-spec ./cmd/deployment-spec
+      - go build -o dist/appmanifest ./cmd/appmanifest
 
   artifact:
     desc: Build reproducible release artifacts, schema assets, and checksums
@@ -39,12 +39,12 @@ tasks:
           arch="${target##*/}"
           ext=""
           [ "$os" = "windows" ] && ext=".exe"
-          name="deployment-spec_${os}_${arch}${ext}"
+          name="appmanifest_${os}_${arch}${ext}"
           CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
             go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}}" \
-            -o "dist/$name" ./cmd/deployment-spec
+            -o "dist/$name" ./cmd/appmanifest
         done
-        cp schema/v1alpha1/deployment.schema.json dist/deployment.schema.json
+        cp schema/v1alpha1/appmanifest.schema.json dist/deployment.schema.json
         (cd dist && sha256sum * > SHA256SUMS)
 
   release:

@@ -1,4 +1,4 @@
-// Command deployment-spec validates and normalizes deployment documents.
+// Command appmanifest validates and normalizes deployment documents.
 package main
 
 import (
@@ -8,10 +8,10 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/MGconsulting/deployment-spec/internal/corpus"
-	"github.com/MGconsulting/deployment-spec/internal/document"
-	"github.com/MGconsulting/deployment-spec/internal/normalize"
-	"github.com/MGconsulting/deployment-spec/internal/validation"
+	"github.com/MGconsulting/appmanifest/internal/corpus"
+	"github.com/MGconsulting/appmanifest/internal/document"
+	"github.com/MGconsulting/appmanifest/internal/normalize"
+	"github.com/MGconsulting/appmanifest/internal/validation"
 )
 
 // Exit codes: 0 valid, 1 validation errors, 2 usage/operational failure.
@@ -49,11 +49,11 @@ func run(args []string) int {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: deployment-spec <validate|normalize|version> [options]")
-	fmt.Fprintln(os.Stderr, "  deployment-spec validate --corpus <dir> [--json]")
-	fmt.Fprintln(os.Stderr, "  deployment-spec validate --file <path> [--json]")
-	fmt.Fprintln(os.Stderr, "  deployment-spec normalize --file <path>")
-	fmt.Fprintln(os.Stderr, "  deployment-spec version")
+	fmt.Fprintln(os.Stderr, "usage: appmanifest <validate|normalize|version> [options]")
+	fmt.Fprintln(os.Stderr, "  appmanifest validate --corpus <dir> [--json]")
+	fmt.Fprintln(os.Stderr, "  appmanifest validate --file <path> [--json]")
+	fmt.Fprintln(os.Stderr, "  appmanifest normalize --file <path>")
+	fmt.Fprintln(os.Stderr, "  appmanifest version")
 }
 
 func cmdVersion() int {
@@ -66,7 +66,7 @@ func cmdVersion() int {
 			}
 		}
 	}
-	fmt.Printf("deployment-spec %s (commit %s)\n", version, commitInfo)
+	fmt.Printf("appmanifest %s (commit %s)\n", version, commitInfo)
 	fmt.Printf("supported apiVersions: %v\n", validation.SupportedAPIVersions)
 	return exitOK
 }
