@@ -1,0 +1,41 @@
+---
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: postgres
+services:
+  postgres:
+    source:
+      image: postgres:17-alpine
+    volumes:
+      - name: data
+        path: /var/lib/postgresql/data
+  pgadmin:
+    source:
+      image: dpage/pgadmin:9
+    httpPort: 80
+volumes:
+  data: {}
+stages:
+  prod:
+    target:
+      host: edge-1
+    secrets:
+      postgres_password:
+        secretRef: bws://01234567-89ab-cdef-0123-456789abcdef
+      pgadmin_password:
+        secretRef: bws://01234567-89ab-cdef-0123-456789abcde0
+    services:
+      postgres:
+        exposure: internal
+        mounts:
+          - secret: postgres_password
+        environment:
+          POSTGRES_PASSWORD_FILE:
+            value: /run/secrets/postgres_password
+      pgadmin:
+        exposure: tailnet
+        hostname: pgadmin.example.com
+        environment:
+          PGADMIN_DEFAULT_EMAIL:
+            value: admin@example.com
+          PGADMIN_DEFAULT_PASSWORD:
+            secret: pgadmin_password

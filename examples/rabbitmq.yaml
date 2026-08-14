@@ -1,0 +1,31 @@
+---
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: rabbitmq
+services:
+  rabbitmq:
+    source:
+      image: rabbitmq:4.2-management-alpine
+    httpPort: 15672
+    volumes:
+      - name: data
+        path: /var/lib/rabbitmq
+volumes:
+  data: {}
+stages:
+  prod:
+    target:
+      host: edge-1
+    secrets:
+      rabbitmq_password:
+        secretRef: bws://01234567-89ab-cdef-0123-456789abcdef
+    services:
+      rabbitmq:
+        # One service, two planes: AMQP stays internal to sibling services,
+        # the management UI is routed on the tailnet.
+        exposure: tailnet
+        hostname: rabbitmq.example.com
+        environment:
+          RABBITMQ_DEFAULT_USER:
+            value: mg
+          RABBITMQ_DEFAULT_PASS:
+            secret: rabbitmq_password

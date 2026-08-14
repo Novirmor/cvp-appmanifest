@@ -18,15 +18,19 @@ func writeFile(t *testing.T, dir, name, content string) string {
 const validDoc = `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 80
+services:
+  web:
+    source:
+      repository: https://github.com/example/app.git
+    httpPort: 80
 stages:
   prod:
-    revision: abc1234
     target: {host: edge-1}
-    route: {hostname: app.example.com, exposure: public}
+    services:
+      web:
+        revision: abc1234
+        exposure: public
+        hostname: app.example.com
 `
 
 func TestDiscoverAndValidate(t *testing.T) {
@@ -48,18 +52,22 @@ func TestDiscoverAndValidate(t *testing.T) {
 	if len(docs) != 2 {
 		t.Fatalf("docs = %d", len(docs))
 	}
-	// Both files claim hostname app.example.com -> cross-document error.
+	// Both files claim hostname app.example.com and the project name "app".
 	if !diags.HasErrors() {
-		t.Fatal("expected duplicate hostname error")
+		t.Fatal("expected cross-document errors")
 	}
-	found := false
+	seenDupHost := false
+	seenDupName := false
 	for _, d := range diags {
 		if d.Code == "DUPLICATE_HOSTNAME" {
-			found = true
+			seenDupHost = true
+		}
+		if d.Code == "DUPLICATE_PROJECT_NAME" {
+			seenDupName = true
 		}
 	}
-	if !found {
-		t.Fatalf("missing DUPLICATE_HOSTNAME, got: %s", diags.Human())
+	if !seenDupHost || !seenDupName {
+		t.Fatalf("missing cross-document findings: %s", diags.Human())
 	}
 }
 
@@ -99,6 +107,24 @@ func TestDuplicateProjectNameDetected(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("missing DUPLICATE_PROJECT_NAME, got: %s", diags.Human())
+	}
+}
+
+func TestValidCorpusPasses(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "a.yaml", validDoc)
+	writeFile(t, dir, "b.yaml", replaceIn(replaceIn(validDoc, "name: app", "name: other"), "app.example.com", "other.example.com"))
+
+	files, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("discover: %v", err)
+	}
+	_, diags, err := ValidateAll(files)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Human())
 	}
 }
 

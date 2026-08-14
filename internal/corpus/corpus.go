@@ -141,24 +141,27 @@ func crossDocumentChecks(docs []Document) diagnostic.List {
 			}
 		}
 		stages, _ := d.Canonical["stages"].(map[string]any)
-		for stageName, raw := range stages {
-			stage, _ := raw.(map[string]any)
-			route, _ := stage["route"].(map[string]any)
-			hostname, _ := route["hostname"].(string)
-			if hostname == "" {
-				continue
-			}
-			key := stageName + " of " + d.File
-			if other, exists := hostnames[hostname]; exists {
-				out.Add(diagnostic.Diagnostic{
-					Code:     "DUPLICATE_HOSTNAME",
-					Severity: diagnostic.SeverityError,
-					File:     d.File,
-					Path:     "$.stages." + stageName + ".route.hostname",
-					Message:  fmt.Sprintf("hostname %q is already claimed by %s", hostname, other),
-				})
-			} else {
-				hostnames[hostname] = key
+		for stageName, rawStage := range stages {
+			stage, _ := rawStage.(map[string]any)
+			stageServices, _ := stage["services"].(map[string]any)
+			for svcName, rawSS := range stageServices {
+				ss, _ := rawSS.(map[string]any)
+				hostname, _ := ss["hostname"].(string)
+				if hostname == "" {
+					continue
+				}
+				key := fmt.Sprintf("service %q of stage %q in %s", svcName, stageName, d.File)
+				if other, exists := hostnames[hostname]; exists {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "DUPLICATE_HOSTNAME",
+						Severity: diagnostic.SeverityError,
+						File:     d.File,
+						Path:     fmt.Sprintf("$.stages.%s.services.%s.hostname", stageName, svcName),
+						Message:  fmt.Sprintf("hostname %q is already claimed by %s", hostname, other),
+					})
+				} else {
+					hostnames[hostname] = key
+				}
 			}
 		}
 	}

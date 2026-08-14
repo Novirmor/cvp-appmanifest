@@ -25,15 +25,19 @@ func TestRunValidateValidFile(t *testing.T) {
 	path := writeTempYAML(t, `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 80
+services:
+  web:
+    source:
+      repository: https://github.com/example/app.git
+    httpPort: 8080
 stages:
   prod:
-    revision: abc1234
     target: {host: edge-1}
-    route: {hostname: app.example.com, exposure: public}
+    services:
+      web:
+        revision: abc1234
+        exposure: public
+        hostname: app.example.com
 `)
 	if code := run([]string{"validate", "--file", path}); code != exitOK {
 		t.Fatalf("validate exit = %d", code)
@@ -57,15 +61,19 @@ func TestRunNormalizeAppliesDefaults(t *testing.T) {
 	path := writeTempYAML(t, `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 80
+services:
+  web:
+    source:
+      repository: https://github.com/example/app.git
+    httpPort: 8080
 stages:
   prod:
-    revision: abc1234
     target: {host: edge-1}
-    route: {hostname: app.example.com, exposure: public}
+    services:
+      web:
+        revision: abc1234
+        exposure: public
+        hostname: app.example.com
 `)
 	if code := run([]string{"normalize", "--file", path}); code != exitOK {
 		t.Fatalf("normalize exit = %d", code)

@@ -1,0 +1,15 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 120
+  comments:
+    min-spaces-from-content: 1
+  truthy:
+    check-keys: false
+
+# Workflow files are linted by actionlint, not yamllint (their long pinned
+# `uses:` lines and unquoted `on:` key are intentional).
+ignore: |
+  .github/workflows/

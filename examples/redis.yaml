@@ -1,0 +1,22 @@
+---
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: redis
+services:
+  redis:
+    source:
+      image: redis:8-alpine
+    volumes:
+      - name: data
+        path: /data
+volumes:
+  data: {}
+stages:
+  prod:
+    target:
+      host: edge-1
+    services:
+      redis:
+        # Internal-only: reachable from sibling services of this application,
+        # never routed through the proxy. Add stage-level secrets and mounts
+        # here when an authenticated deployment is needed.
+        exposure: internal

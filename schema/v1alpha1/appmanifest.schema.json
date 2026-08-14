@@ -1,66 +1,33 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://spec.mgconsulting.io/appmanifest/v1alpha1/appmanifest.schema.json",
-  "title": "Deployment document v1alpha1",
+  "title": "Application manifest v1alpha1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "name", "source", "container", "stages"],
+  "required": ["apiVersion", "name", "services", "stages"],
   "properties": {
     "apiVersion": {
       "const": "appmanifest.mgconsulting.io/v1alpha1"
     },
     "name": {
-      "description": "Stable logical project identity. The filename is not identity.",
+      "description": "Stable logical application identity. The filename is not identity.",
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"
     },
-    "source": {
+    "services": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["repository"],
-      "properties": {
-        "repository": {
-          "description": "HTTPS Git URL without embedded credentials.",
-          "type": "string",
-          "maxLength": 512,
-          "pattern": "^https://[A-Za-z0-9._-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$"
-        },
-        "build": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "context": {
-              "description": "Relative to the repository root; must stay inside the checkout.",
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^(\\.|\\./)?([A-Za-z0-9._-]+/?)*$",
-              "not": {"pattern": "\\.\\."},
-              "default": "."
-            },
-            "dockerfile": {
-              "description": "Relative to the build context; must stay inside the checkout.",
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^[A-Za-z0-9._-][A-Za-z0-9._/-]*$",
-              "not": {"pattern": "\\.\\."},
-              "default": "Dockerfile"
-            }
-          }
-        }
-      }
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,30}$"},
+      "patternProperties": {
+        "^[a-z][a-z0-9-]{0,30}$": {"$ref": "#/$defs/service"}
+      },
+      "additionalProperties": false
     },
-    "container": {
+    "volumes": {
+      "description": "Named persistent volumes shared by the application's stages.",
       "type": "object",
-      "additionalProperties": false,
-      "required": ["httpPort"],
-      "properties": {
-        "httpPort": {
-          "description": "Single plain-HTTP listening port exposed to the router.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 65535
-        }
-      }
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,63}$"},
+      "additionalProperties": {"$ref": "#/$defs/volume"}
     },
     "stages": {
       "type": "object",
@@ -73,17 +40,95 @@
     }
   },
   "$defs": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "oneOf": [
+            {"required": ["image"]},
+            {"required": ["repository"]}
+          ],
+          "properties": {
+            "image": {
+              "description": "Prebuilt container image reference, optionally with tag or sha256 digest.",
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]{1,127})?(?:@sha256:[a-f0-9]{64})?$"
+            },
+            "repository": {
+              "description": "HTTPS Git URL without embedded credentials.",
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^https://[A-Za-z0-9._-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$"
+            },
+            "build": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "context": {
+                  "description": "Relative to the repository root; must stay inside the checkout.",
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(\\.|\\./)?([A-Za-z0-9._-]+/?)*$",
+                  "not": {"pattern": "\\.\\."},
+                  "default": "."
+                },
+                "dockerfile": {
+                  "description": "Relative to the build context; must stay inside the checkout.",
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9._-][A-Za-z0-9._/-]*$",
+                  "not": {"pattern": "\\.\\."},
+                  "default": "Dockerfile"
+                }
+              }
+            }
+          }
+        },
+        "httpPort": {
+          "description": "Plain-HTTP port the router forwards to. Required only when a stage exposes the service publicly or on the tailnet.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "volumes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/volumeMount"}
+        }
+      }
+    },
+    "volume": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "volumeMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "path": {
+          "description": "Absolute container path the named volume is mounted at.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 255,
+          "pattern": "^/[A-Za-z0-9._][A-Za-z0-9._/-]*$",
+          "not": {"pattern": "\\.\\."}
+        }
+      }
+    },
     "stage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["revision", "target", "route"],
+      "required": ["target", "services"],
       "properties": {
-        "revision": {
-          "description": "Git branch, tag, or commit SHA. Production commit pinning is executor policy.",
-          "type": "string",
-          "maxLength": 255,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
-        },
         "target": {
           "type": "object",
           "additionalProperties": false,
@@ -96,26 +141,73 @@
             }
           }
         },
+        "secrets": {
+          "description": "Stage secret material. Consumed as env values or as Docker-secrets-style files at /run/secrets/<name>.",
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+          "additionalProperties": {"$ref": "#/$defs/secretSource"}
+        },
+        "services": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,30}$"},
+          "additionalProperties": {"$ref": "#/$defs/stageService"}
+        }
+      }
+    },
+    "secretSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretRef"],
+      "properties": {
+        "secretRef": {
+          "description": "Typed controller-resolved secret reference.",
+          "type": "string",
+          "pattern": "^bws://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "stageService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exposure"],
+      "properties": {
+        "revision": {
+          "description": "Git branch, tag, or commit SHA. Required for repository-built services; forbidden for image services.",
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+        },
+        "exposure": {
+          "description": "public: routed on the public entrypoint. tailnet: routed on the tailnet entrypoint. internal: no route; reachable only from sibling services.",
+          "enum": ["public", "tailnet", "internal"]
+        },
+        "hostname": {
+          "description": "Required iff exposure is public or tailnet.",
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+        },
         "environment": {
           "type": "object",
           "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
           "additionalProperties": {"$ref": "#/$defs/environmentEntry"}
         },
-        "route": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["hostname", "exposure"],
-          "properties": {
-            "hostname": {
-              "type": "string",
-              "maxLength": 253,
-              "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
-            },
-            "exposure": {
-              "description": "Network reachability intent, not authentication.",
-              "enum": ["public", "tailnet"]
-            }
-          }
+        "mounts": {
+          "description": "Secrets mounted as files under /run/secrets/<name>.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/secretMount"}
+        }
+      }
+    },
+    "secretMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secret"],
+      "properties": {
+        "secret": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
         }
       }
     },
@@ -124,17 +216,17 @@
       "additionalProperties": false,
       "oneOf": [
         {"required": ["value"]},
-        {"required": ["secretRef"]}
+        {"required": ["secret"]}
       ],
       "properties": {
         "value": {
-          "description": "Literal string value. Never place secrets here.",
+          "description": "Literal string value. Never place secret material here.",
           "type": "string"
         },
-        "secretRef": {
-          "description": "Typed controller-resolved secret reference.",
+        "secret": {
+          "description": "Name of a secret declared in the same stage; its resolved value becomes this variable.",
           "type": "string",
-          "pattern": "^bws://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
         }
       }
     }

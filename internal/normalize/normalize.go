@@ -1,43 +1,74 @@
 // Package normalize applies documented defaults exactly once and produces a
-// deterministic canonical value model for a deployment document.
+// deterministic canonical value model for an application manifest.
 package normalize
 
 import "fmt"
 
 // Canonical returns a new value model with defaults applied. It never mutates
-// the input. Defaults for v1alpha1: source.build.context and
-// source.build.dockerfile default to "." and "Dockerfile"; a missing stage
-// environment is an empty map.
+// the input. Defaults for v1alpha1: repository-build contexts default to "." and
+// "Dockerfile"; missing service volume lists, stage secret maps, stage-service
+// environments, and mounts become empty collections.
 func Canonical(doc map[string]any) (map[string]any, error) {
 	out := copyMap(doc)
 
-	source, err := objectAt(out, "source")
+	services, err := objectAt(out, "services")
 	if err != nil {
 		return nil, err
 	}
-	build, ok := source["build"].(map[string]any)
-	if !ok {
-		build = map[string]any{}
-		source["build"] = build
-	}
-	if _, ok := build["context"]; !ok {
-		build["context"] = "."
-	}
-	if _, ok := build["dockerfile"]; !ok {
-		build["dockerfile"] = "Dockerfile"
+	for name, raw := range services {
+		svc, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("services.%s: expected mapping", name)
+		}
+		source, ok := svc["source"].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("services.%s.source: expected mapping", name)
+		}
+		if _, isGit := source["repository"]; isGit {
+			build, ok := source["build"].(map[string]any)
+			if !ok {
+				build = map[string]any{}
+				source["build"] = build
+			}
+			if _, ok := build["context"]; !ok {
+				build["context"] = "."
+			}
+			if _, ok := build["dockerfile"]; !ok {
+				build["dockerfile"] = "Dockerfile"
+			}
+		}
+		if _, ok := svc["volumes"]; !ok {
+			svc["volumes"] = []any{}
+		}
 	}
 
 	stages, err := objectAt(out, "stages")
 	if err != nil {
 		return nil, err
 	}
-	for name, raw := range stages {
+	for stageName, raw := range stages {
 		stage, ok := raw.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("stages.%s: expected mapping", name)
+			return nil, fmt.Errorf("stages.%s: expected mapping", stageName)
 		}
-		if _, ok := stage["environment"]; !ok {
-			stage["environment"] = map[string]any{}
+		if _, ok := stage["secrets"]; !ok {
+			stage["secrets"] = map[string]any{}
+		}
+		stageServices, ok := stage["services"].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("stages.%s.services: expected mapping", stageName)
+		}
+		for svcName, rawSS := range stageServices {
+			ss, ok := rawSS.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("stages.%s.services.%s: expected mapping", stageName, svcName)
+			}
+			if _, ok := ss["environment"]; !ok {
+				ss["environment"] = map[string]any{}
+			}
+			if _, ok := ss["mounts"]; !ok {
+				ss["mounts"] = []any{}
+			}
 		}
 	}
 	return out, nil

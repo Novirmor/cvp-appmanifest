@@ -1,12 +1,13 @@
 package validation
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/MGconsulting/appmanifest/internal/diagnostic"
 	"github.com/MGconsulting/appmanifest/internal/document"
-	v1alpha1 "github.com/MGconsulting/appmanifest/schema/v1alpha1"
 )
+
+type diagnosticList = diagnostic.List
 
 func load(t *testing.T, yaml string) map[string]any {
 	t.Helper()
@@ -17,23 +18,35 @@ func load(t *testing.T, yaml string) map[string]any {
 	return doc
 }
 
-func TestValidateSchemaValid(t *testing.T) {
-	doc := load(t, `
+const minimalApp = `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 8080
+services:
+  web:
+    source:
+      repository: https://github.com/example/app.git
+    httpPort: 8080
 stages:
   prod:
-    revision: abc1234
     target: {host: edge-1}
-    environment:
-      KEY: {value: "v"}
-    route: {hostname: app.example.com, exposure: public}
-`)
-	diags := ValidateSchema(doc)
+    services:
+      web:
+        revision: abc1234
+        exposure: public
+        hostname: app.example.com
+`
+
+func hasCode(diags diagnosticList, code string) bool {
+	for _, d := range diags {
+		if d.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func TestValidateSchemaValid(t *testing.T) {
+	diags := ValidateSchema(load(t, minimalApp))
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Human())
 	}
@@ -42,29 +55,13 @@ stages:
 func TestValidateSchemaUnsupportedAPIVersion(t *testing.T) {
 	doc := load(t, "apiVersion: appmanifest.mgconsulting.io/v9\nname: app\n")
 	diags := ValidateSchema(doc)
-	if !diags.HasErrors() {
-		t.Fatal("expected error for unsupported apiVersion")
-	}
-	if diags[0].Code != "UNSUPPORTED_API_VERSION" {
-		t.Fatalf("code = %s", diags[0].Code)
+	if !hasCode(diags, "UNSUPPORTED_API_VERSION") {
+		t.Fatalf("missing UNSUPPORTED_API_VERSION: %s", diags.Human())
 	}
 }
 
 func TestValidateSchemaUnknownFieldRejected(t *testing.T) {
-	doc := load(t, `
-apiVersion: appmanifest.mgconsulting.io/v1alpha1
-name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 8080
-stages:
-  prod:
-    revision: abc
-    target: {host: edge-1}
-    route: {hostname: app.example.com, exposure: public}
-    replicas: 3
-`)
+	doc := load(t, minimalApp+"\n      extra: true\n")
 	diags := ValidateSchema(doc)
 	if !diags.HasErrors() {
 		t.Fatal("expected error for unknown field")
@@ -75,15 +72,16 @@ func TestValidateSchemaBadPort(t *testing.T) {
 	doc := load(t, `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 99999
+services:
+  web:
+    source: {image: "example/app:1"}
+    httpPort: 99999
 stages:
   prod:
-    revision: abc
     target: {host: edge-1}
-    route: {hostname: app.example.com, exposure: public}
+    services:
+      web:
+        exposure: internal
 `)
 	diags := ValidateSchema(doc)
 	if !diags.HasErrors() {
@@ -91,19 +89,43 @@ stages:
 	}
 }
 
+func TestValidateSchemaImageWithDigest(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  web:
+    source:
+      image: ghcr.io/example/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      web:
+        exposure: internal
+`)
+	diags := ValidateSchema(doc)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Human())
+	}
+}
+
 func TestValidateSchemaUnsafeRevisionRejected(t *testing.T) {
 	doc := load(t, `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 80
+services:
+  web:
+    source: {repository: "https://github.com/example/app.git"}
+    httpPort: 80
 stages:
   prod:
-    revision: --option
     target: {host: edge-1}
-    route: {hostname: app.example.com, exposure: public}
+    services:
+      web:
+        revision: --option
+        exposure: public
+        hostname: app.example.com
 `)
 	diags := ValidateSchema(doc)
 	if !diags.HasErrors() {
@@ -111,45 +133,207 @@ stages:
 	}
 }
 
-func TestValidateSemanticDuplicateHostname(t *testing.T) {
+func TestSemanticMissingStageService(t *testing.T) {
 	doc := load(t, `
 apiVersion: appmanifest.mgconsulting.io/v1alpha1
 name: app
-source:
-  repository: https://github.com/example/app.git
-container:
-  httpPort: 80
+services:
+  web:
+    source: {image: "example/web:1"}
+  worker:
+    source: {image: "example/worker:1"}
 stages:
-  a:
-    revision: abc
+  prod:
     target: {host: edge-1}
-    route: {hostname: same.example.com, exposure: public}
-  b:
-    revision: abc
-    target: {host: edge-2}
-    route: {hostname: same.example.com, exposure: tailnet}
+    services:
+      web:
+        exposure: internal
 `)
 	diags := ValidateSemantic(doc)
-	if !diags.HasErrors() {
-		t.Fatal("expected duplicate hostname error")
-	}
-	if diags[0].Code != "DUPLICATE_HOSTNAME" {
-		t.Fatalf("code = %s", diags[0].Code)
+	if !hasCode(diags, "MISSING_STAGE_SERVICE") {
+		t.Fatalf("missing MISSING_STAGE_SERVICE: %s", diags.Human())
 	}
 }
 
-func TestSchemaByteEquality(t *testing.T) {
-	// The embedded schema must be valid JSON, carry the API version, and be
-	// byte-identical to the released asset. The byte-identical release asset
-	// check runs in CI against the packaged schema file.
-	if len(v1alpha1.Schema) == 0 {
-		t.Fatal("embedded schema is empty")
+func TestSemanticUnknownStageService(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  web:
+    source: {image: "example/web:1"}
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      web:
+        exposure: internal
+      ghost:
+        exposure: internal
+`)
+	diags := ValidateSemantic(doc)
+	if !hasCode(diags, "UNKNOWN_STAGE_SERVICE") {
+		t.Fatalf("missing UNKNOWN_STAGE_SERVICE: %s", diags.Human())
 	}
-	var parsed map[string]any
-	if err := json.Unmarshal(v1alpha1.Schema, &parsed); err != nil {
-		t.Fatalf("embedded schema is not valid JSON: %v", err)
+}
+
+func TestSemanticRevisionRules(t *testing.T) {
+	diags := ValidateSemantic(load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  built:
+    source: {repository: "https://github.com/example/app.git"}
+    httpPort: 80
+  pulled:
+    source: {image: "example/pulled:1"}
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      built:
+        exposure: internal
+      pulled:
+        revision: v1.2.3
+        exposure: internal
+`))
+	foundMissing := false
+	foundForbidden := false
+	for _, d := range diags {
+		if d.Code == "MISSING_REVISION" {
+			foundMissing = true
+		}
+		if d.Code == "FORBIDDEN_REVISION" {
+			foundForbidden = true
+		}
 	}
-	if parsed["$id"] == nil {
-		t.Fatal("embedded schema has no $id")
+	if !foundMissing || !foundForbidden {
+		t.Fatalf("expected MISSING_REVISION and FORBIDDEN_REVISION: %s", diags.Human())
+	}
+}
+
+func TestSemanticRoutedServiceNeedsHostnameAndPort(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  web:
+    source: {image: "example/web:1"}
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      web:
+        exposure: tailnet
+`)
+	diags := ValidateSemantic(doc)
+	if !hasCode(diags, "MISSING_HOSTNAME") {
+		t.Fatalf("missing MISSING_HOSTNAME: %s", diags.Human())
+	}
+	if !hasCode(diags, "MISSING_HTTP_PORT") {
+		t.Fatalf("missing MISSING_HTTP_PORT: %s", diags.Human())
+	}
+}
+
+func TestSemanticInternalServiceForbidsHostname(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  db:
+    source: {image: "postgres:17-alpine"}
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      db:
+        exposure: internal
+        hostname: db.example.com
+`)
+	diags := ValidateSemantic(doc)
+	if !hasCode(diags, "FORBIDDEN_HOSTNAME") {
+		t.Fatalf("missing FORBIDDEN_HOSTNAME: %s", diags.Human())
+	}
+}
+
+func TestSemanticUnknownSecretReferences(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  db:
+    source: {image: "postgres:17-alpine"}
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      db:
+        exposure: internal
+        environment:
+          POSTGRES_PASSWORD:
+            secret: missing_password
+        mounts:
+          - secret: also_missing
+`)
+	diags := ValidateSemantic(doc)
+	count := 0
+	for _, d := range diags {
+		if d.Code == "UNKNOWN_SECRET" {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Fatalf("expected two UNKNOWN_SECRET findings: %s", diags.Human())
+	}
+}
+
+func TestSemanticUnknownVolumeReference(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  db:
+    source: {image: "postgres:17-alpine"}
+    volumes:
+      - name: undeclared
+        path: /var/lib/postgresql/data
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      db:
+        exposure: internal
+`)
+	diags := ValidateSemantic(doc)
+	if !hasCode(diags, "UNKNOWN_VOLUME") {
+		t.Fatalf("missing UNKNOWN_VOLUME: %s", diags.Human())
+	}
+}
+
+func TestSemanticDuplicateHostnameAcrossStages(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha1
+name: app
+services:
+  web:
+    source: {image: "example/web:1"}
+    httpPort: 80
+stages:
+  prod:
+    target: {host: edge-1}
+    services:
+      web:
+        exposure: public
+        hostname: app.example.com
+  staging:
+    target: {host: edge-2}
+    services:
+      web:
+        exposure: tailnet
+        hostname: app.example.com
+`)
+	diags := ValidateSemantic(doc)
+	if !hasCode(diags, "DUPLICATE_HOSTNAME") {
+		t.Fatalf("missing DUPLICATE_HOSTNAME: %s", diags.Human())
 	}
 }

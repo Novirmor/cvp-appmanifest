@@ -4,66 +4,94 @@ import (
 	"testing"
 )
 
-func TestCanonicalAppliesDefaults(t *testing.T) {
-	doc := map[string]any{
+func baseDoc() map[string]any {
+	return map[string]any{
 		"name": "app",
-		"source": map[string]any{
-			"repository": "https://github.com/example/app.git",
+		"services": map[string]any{
+			"built": map[string]any{
+				"source": map[string]any{
+					"repository": "https://github.com/example/app.git",
+				},
+			},
+			"pulled": map[string]any{
+				"source": map[string]any{
+					"image": "example/pulled:1",
+				},
+			},
 		},
-		"container": map[string]any{"httpPort": int64(80)},
 		"stages": map[string]any{
 			"prod": map[string]any{
-				"revision": "abc",
+				"target": map[string]any{"host": "edge-1"},
+				"services": map[string]any{
+					"built":  map[string]any{"revision": "abc", "exposure": "internal"},
+					"pulled": map[string]any{"exposure": "internal"},
+				},
 			},
 		},
 	}
-	canonical, err := Canonical(doc)
+}
+
+func TestCanonicalAppliesDefaults(t *testing.T) {
+	canonical, err := Canonical(baseDoc())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	build := canonical["source"].(map[string]any)["build"].(map[string]any)
-	if build["context"] != "." || build["dockerfile"] != "Dockerfile" {
-		t.Fatalf("defaults not applied: %v", build)
+
+	built := canonical["services"].(map[string]any)["built"].(map[string]any)
+	source := built["source"].(map[string]any)
+	build, ok := source["build"].(map[string]any)
+	if !ok {
+		t.Fatal("build defaults not created for repository service")
 	}
+	if build["context"] != "." || build["dockerfile"] != "Dockerfile" {
+		t.Fatalf("build defaults wrong: %v", build)
+	}
+	if _, hasVolumes := built["volumes"]; !hasVolumes {
+		t.Fatal("empty volumes list not materialized")
+	}
+
+	// Image services get no build block.
+	pulled := canonical["services"].(map[string]any)["pulled"].(map[string]any)
+	if _, hasBuild := pulled["source"].(map[string]any)["build"]; hasBuild {
+		t.Fatal("image service must not receive build defaults")
+	}
+
 	stage := canonical["stages"].(map[string]any)["prod"].(map[string]any)
-	if _, ok := stage["environment"].(map[string]any); !ok {
-		t.Fatal("environment default not applied")
+	if _, ok := stage["secrets"].(map[string]any); !ok {
+		t.Fatal("empty stage secrets not materialized")
+	}
+	ss := stage["services"].(map[string]any)["built"].(map[string]any)
+	if _, ok := ss["environment"].(map[string]any); !ok {
+		t.Fatal("empty environment not materialized")
+	}
+	if _, ok := ss["mounts"].([]any); !ok {
+		t.Fatal("empty mounts not materialized")
 	}
 }
 
 func TestCanonicalDoesNotMutateInput(t *testing.T) {
-	doc := map[string]any{
-		"name": "app",
-		"source": map[string]any{
-			"repository": "https://github.com/example/app.git",
-		},
-		"container": map[string]any{"httpPort": int64(80)},
-		"stages":    map[string]any{},
-	}
+	doc := baseDoc()
 	if _, err := Canonical(doc); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	source := doc["source"].(map[string]any)
-	if _, ok := source["build"]; ok {
+	built := doc["services"].(map[string]any)["built"].(map[string]any)
+	if _, ok := built["source"].(map[string]any)["build"]; ok {
 		t.Fatal("input was mutated")
 	}
 }
 
 func TestCanonicalPreservesExplicitValues(t *testing.T) {
-	doc := map[string]any{
-		"name": "app",
-		"source": map[string]any{
-			"repository": "https://github.com/example/app.git",
-			"build":      map[string]any{"context": "frontend", "dockerfile": "Dockerfile.dev"},
-		},
-		"container": map[string]any{"httpPort": int64(8080)},
-		"stages":    map[string]any{},
+	doc := baseDoc()
+	built := doc["services"].(map[string]any)["built"].(map[string]any)
+	built["source"].(map[string]any)["build"] = map[string]any{
+		"context":    "frontend",
+		"dockerfile": "Dockerfile.dev",
 	}
 	canonical, err := Canonical(doc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	build := canonical["source"].(map[string]any)["build"].(map[string]any)
+	build := canonical["services"].(map[string]any)["built"].(map[string]any)["source"].(map[string]any)["build"].(map[string]any)
 	if build["context"] != "frontend" || build["dockerfile"] != "Dockerfile.dev" {
 		t.Fatalf("explicit values lost: %v", build)
 	}

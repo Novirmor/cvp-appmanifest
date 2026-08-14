@@ -1,5 +1,5 @@
 // Package validation applies the immutable schema and per-document semantic
-// checks to a decoded deployment document.
+// checks to a decoded application manifest.
 package validation
 
 import (
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -17,13 +18,13 @@ import (
 	v1alpha1 "github.com/MGconsulting/appmanifest/schema/v1alpha1"
 )
 
-// printer formats schema error kinds deterministically.
-var printer = message.NewPrinter(language.English)
-
 // SupportedAPIVersions lists the API versions this validator release accepts.
 var SupportedAPIVersions = []string{v1alpha1.APIVersion}
 
 var hostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
+
+// printer formats schema error kinds deterministically.
+var printer = message.NewPrinter(language.English)
 
 // forbiddenLoader blocks every external $ref resolution; references must be
 // local and pre-registered.
@@ -46,7 +47,7 @@ func compileSchema() (*jsonschema.Schema, error) {
 	return c.Compile(v1alpha1.APIVersion)
 }
 
-// ValidateSchema checks the decoded document against the v1alpha1 schema.
+// ValidateSchema checks the decoded manifest against the v1alpha1 schema.
 func ValidateSchema(doc map[string]any) diagnostic.List {
 	var out diagnostic.List
 
@@ -118,35 +119,184 @@ func instancePath(segments []string) string {
 	return b.String()
 }
 
-// ValidateSemantic runs per-document checks that JSON Schema cannot express:
-// no stage may claim a hostname another stage of the same document claims.
+// ValidateSemantic runs per-document checks that JSON Schema cannot express.
 func ValidateSemantic(doc map[string]any) diagnostic.List {
 	var out diagnostic.List
+
+	services, _ := doc["services"].(map[string]any)
+	volumes, _ := doc["volumes"].(map[string]any)
 	stages, _ := doc["stages"].(map[string]any)
-	claimed := make(map[string]string, len(stages))
+
+	// Service volume mounts must reference declared top-level volumes.
+	for svcName, raw := range services {
+		svc, _ := raw.(map[string]any)
+		mounts, _ := svc["volumes"].([]any)
+		for i, m := range mounts {
+			mount, _ := m.(map[string]any)
+			name, _ := mount["name"].(string)
+			if _, ok := volumes[name]; !ok {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "UNKNOWN_VOLUME",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.services.%s.volumes[%d].name", svcName, i),
+					Message:  fmt.Sprintf("volume %q is not declared under $.volumes", name),
+				})
+			}
+		}
+	}
+
+	claimed := hostnameClaim{}
 	for stageName, raw := range stages {
-		stage, ok := raw.(map[string]any)
-		if !ok {
-			continue
+		stage, _ := raw.(map[string]any)
+		stageServices, _ := stage["services"].(map[string]any)
+		secrets, _ := stage["secrets"].(map[string]any)
+
+		// Every application service must be placed in every stage, and a stage
+		// may not place services the application does not declare.
+		for svcName := range services {
+			if _, ok := stageServices[svcName]; !ok {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "MISSING_STAGE_SERVICE",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s", stageName, svcName),
+					Message:  fmt.Sprintf("stage %q does not place service %q; the complete application is deployed per stage", stageName, svcName),
+				})
+			}
 		}
-		route, ok := stage["route"].(map[string]any)
-		if !ok {
-			continue
+		for svcName := range stageServices {
+			if _, ok := services[svcName]; !ok {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "UNKNOWN_STAGE_SERVICE",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s", stageName, svcName),
+					Message:  fmt.Sprintf("stage %q places service %q which the application does not declare", stageName, svcName),
+				})
+			}
 		}
-		hostname, ok := route["hostname"].(string)
-		if !ok || !hostnamePattern.MatchString(hostname) {
-			continue
+
+		for svcName, rawSS := range stageServices {
+			ss, _ := rawSS.(map[string]any)
+			svc, _ := services[svcName].(map[string]any)
+			source, _ := svc["source"].(map[string]any)
+			_, gitSource := source["repository"]
+			_, imageSource := source["image"]
+
+			// Revision rules: git-built services need one per stage; image
+			// services must not carry one.
+			_, hasRevision := ss["revision"]
+			if gitSource && !hasRevision {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "MISSING_REVISION",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s.revision", stageName, svcName),
+					Message:  fmt.Sprintf("service %q is built from a repository and requires a revision in stage %q", svcName, stageName),
+				})
+			}
+			if imageSource && hasRevision {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "FORBIDDEN_REVISION",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s.revision", stageName, svcName),
+					Message:  fmt.Sprintf("service %q uses a prebuilt image and must not declare a revision", svcName),
+				})
+			}
+
+			// Exposure and hostname conditionals.
+			exposure, _ := ss["exposure"].(string)
+			hostname, hasHostname := ss["hostname"].(string)
+			if exposure == "public" || exposure == "tailnet" {
+				if !hasHostname || !hostnamePattern.MatchString(hostname) {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "MISSING_HOSTNAME",
+						Severity: diagnostic.SeverityError,
+						Path:     fmt.Sprintf("$.stages.%s.services.%s.hostname", stageName, svcName),
+						Message:  fmt.Sprintf("service %q is exposed %q in stage %q and requires a hostname", svcName, exposure, stageName),
+					})
+				} else {
+					claimed.add(hostname, fmt.Sprintf("service %q of stage %q", svcName, stageName), fmt.Sprintf("$.stages.%s.services.%s.hostname", stageName, svcName), &out)
+				}
+				if _, hasPort := svc["httpPort"]; !hasPort {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "MISSING_HTTP_PORT",
+						Severity: diagnostic.SeverityError,
+						Path:     fmt.Sprintf("$.services.%s.httpPort", svcName),
+						Message:  fmt.Sprintf("service %q is routed in stage %q and must declare services.%s.httpPort", svcName, stageName, svcName),
+					})
+				}
+			}
+			if exposure == "internal" && hasHostname {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "FORBIDDEN_HOSTNAME",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s.hostname", stageName, svcName),
+					Message:  fmt.Sprintf("service %q is internal in stage %q and must not declare a hostname", svcName, stageName),
+				})
+			}
+
+			// Env entries referencing secrets and file mounts must resolve
+			// against the stage's declared secrets.
+			environment, _ := ss["environment"].(map[string]any)
+			for envName, rawEntry := range environment {
+				entry, _ := rawEntry.(map[string]any)
+				secretName, ok := entry["secret"].(string)
+				if !ok {
+					continue
+				}
+				if _, ok := secrets[secretName]; !ok {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "UNKNOWN_SECRET",
+						Severity: diagnostic.SeverityError,
+						Path:     fmt.Sprintf("$.stages.%s.services.%s.environment.%s.secret", stageName, svcName, envName),
+						Message:  fmt.Sprintf("secret %q is not declared in stage %q", secretName, stageName),
+					})
+				}
+			}
+			mounts, _ := ss["mounts"].([]any)
+			for i, m := range mounts {
+				mount, _ := m.(map[string]any)
+				secretName, _ := mount["secret"].(string)
+				if _, ok := secrets[secretName]; !ok {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "UNKNOWN_SECRET",
+						Severity: diagnostic.SeverityError,
+						Path:     fmt.Sprintf("$.stages.%s.services.%s.mounts[%d].secret", stageName, svcName, i),
+						Message:  fmt.Sprintf("secret %q is not declared in stage %q", secretName, stageName),
+					})
+				}
+			}
 		}
-		if other, exists := claimed[hostname]; exists {
-			out.Add(diagnostic.Diagnostic{
-				Code:     "DUPLICATE_HOSTNAME",
-				Severity: diagnostic.SeverityError,
-				Path:     "$.stages." + stageName + ".route.hostname",
-				Message:  fmt.Sprintf("hostname %q is already claimed by stage %q of this document", hostname, other),
-			})
-			continue
-		}
-		claimed[hostname] = stageName
 	}
 	return out
+}
+
+// hostnameClaim enforces single-owner routing within one document across all
+// stages and services.
+type hostnameClaim struct {
+	byHostname map[string]string
+}
+
+func (c *hostnameClaim) add(hostname, owner, path string, out *diagnostic.List) {
+	if c.byHostname == nil {
+		c.byHostname = map[string]string{}
+	}
+	if other, exists := c.byHostname[hostname]; exists {
+		out.Add(diagnostic.Diagnostic{
+			Code:     "DUPLICATE_HOSTNAME",
+			Severity: diagnostic.SeverityError,
+			Path:     path,
+			Message:  fmt.Sprintf("hostname %q is already claimed by %s of this document", hostname, other),
+		})
+		return
+	}
+	c.byHostname[hostname] = owner
+}
+
+// SortedServiceNames returns deterministic service-name ordering for callers.
+func SortedServiceNames(services map[string]any) []string {
+	names := make([]string, 0, len(services))
+	for name := range services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
