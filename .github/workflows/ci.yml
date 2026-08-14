@@ -1,0 +1,44 @@
+---
+name: CI
+
+"on":
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    uses: MGconsulting/.github/.github/workflows/lint.yml@7213a2ba3f3f8f6f1f3a428a58ac806bcc893435 # main
+    with:
+      cache-paths: |
+        ~/.local/share/mise
+        ~/.cache/pre-commit
+      cache-key-files: |
+        mise.toml
+        .pre-commit-config.yaml
+        go.sum
+    permissions:
+      contents: read
+
+  test:
+    uses: MGconsulting/.github/.github/workflows/test.yml@7213a2ba3f3f8f6f1f3a428a58ac806bcc893435 # main
+    with:
+      cache-paths: |
+        ~/.local/share/mise
+        ~/.cache/pre-commit
+        ~/.cache/go-build
+      cache-key-files: |
+        mise.toml
+        go.sum
+    permissions:
+      contents: read
+
+  security:
+    uses: MGconsulting/.github/.github/workflows/security.yml@7213a2ba3f3f8f6f1f3a428a58ac806bcc893435 # main
+    permissions:
+      contents: read

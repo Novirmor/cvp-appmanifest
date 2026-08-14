@@ -1,0 +1,5 @@
+# Local tool caches and build output.
+/.task/
+/.venv/
+/dist/
+/.gitleaks-baseline.json

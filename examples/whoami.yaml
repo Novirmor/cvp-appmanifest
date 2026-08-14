@@ -1,0 +1,17 @@
+apiVersion: deployment.mgconsulting.io/v1alpha1
+name: whoami
+source:
+  repository: https://github.com/traefik/whoami.git
+container:
+  httpPort: 80
+stages:
+  dev:
+    revision: v1.10.4
+    target:
+      host: edge-1
+    environment:
+      WHOAMI_NAME:
+        value: "whoami-dev"
+    route:
+      hostname: whoami.dev.example.com
+      exposure: tailnet

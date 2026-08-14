@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.mgconsulting.io/deployment-spec/v1alpha1/deployment.schema.json",
+  "title": "Deployment document v1alpha1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "name", "source", "container", "stages"],
+  "properties": {
+    "apiVersion": {
+      "const": "deployment.mgconsulting.io/v1alpha1"
+    },
+    "name": {
+      "description": "Stable logical project identity. The filename is not identity.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository"],
+      "properties": {
+        "repository": {
+          "description": "HTTPS Git URL without embedded credentials.",
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^https://[A-Za-z0-9._-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$"
+        },
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "context": {
+              "description": "Relative to the repository root; must stay inside the checkout.",
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(\\.|\\./)?([A-Za-z0-9._-]+/?)*$",
+              "not": {"pattern": "\\.\\."},
+              "default": "."
+            },
+            "dockerfile": {
+              "description": "Relative to the build context; must stay inside the checkout.",
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-][A-Za-z0-9._/-]*$",
+              "not": {"pattern": "\\.\\."},
+              "default": "Dockerfile"
+            }
+          }
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["httpPort"],
+      "properties": {
+        "httpPort": {
+          "description": "Single plain-HTTP listening port exposed to the router.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "stages": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z0-9][a-z0-9-]{0,30}$"},
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9-]{0,30}$": {"$ref": "#/$defs/stage"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "target", "route"],
+      "properties": {
+        "revision": {
+          "description": "Git branch, tag, or commit SHA. Production commit pinning is executor policy.",
+          "type": "string",
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["host"],
+          "properties": {
+            "host": {
+              "description": "Inventory hostname. Inventory membership is executor policy.",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/environmentEntry"}
+        },
+        "route": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hostname", "exposure"],
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "maxLength": 253,
+              "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+            },
+            "exposure": {
+              "description": "Network reachability intent, not authentication.",
+              "enum": ["public", "tailnet"]
+            }
+          }
+        }
+      }
+    },
+    "environmentEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {"required": ["value"]},
+        {"required": ["secretRef"]}
+      ],
+      "properties": {
+        "value": {
+          "description": "Literal string value. Never place secrets here.",
+          "type": "string"
+        },
+        "secretRef": {
+          "description": "Typed controller-resolved secret reference.",
+          "type": "string",
+          "pattern": "^bws://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    }
+  }
+}

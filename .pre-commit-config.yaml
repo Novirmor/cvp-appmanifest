@@ -1,0 +1,38 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 4189d189e039fd49eb235357c9d9977b026c6c8e # v5.0.1
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: cba56bcde1fdd01c1deb3f945e69764c291a6530 # v1.38.0
+    hooks:
+      - id: yamllint
+        args: [--strict]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -l -w .
+        language: system
+        types: [go]
+      - id: go-test
+        name: go-test
+        entry: go test ./...
+        language: system
+        pass_filenames: false
+      - id: corpus-validate
+        name: corpus-validate
+        entry: sh -c 'go run ./cmd/deployment-spec validate --corpus examples'
+        language: system
+        pass_filenames: false

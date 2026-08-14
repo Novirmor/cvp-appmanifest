@@ -1,0 +1,29 @@
+apiVersion: deployment.mgconsulting.io/v1alpha1
+name: static-site
+source:
+  repository: https://github.com/example/static-site.git
+  build:
+    context: .
+    dockerfile: Dockerfile
+container:
+  httpPort: 8080
+stages:
+  prod:
+    revision: 81977d4f381dbd843d678d1daa06c78562e18466
+    target:
+      host: edge-1
+    environment:
+      NGINX_PORT:
+        value: "8080"
+      API_KEY:
+        secretRef: bws://01234567-89ab-cdef-0123-456789abcdef
+    route:
+      hostname: static-site.example.com
+      exposure: public
+  preview:
+    revision: 81977d4f381dbd843d678d1daa06c78562e18466
+    target:
+      host: edge-2
+    route:
+      hostname: preview.static-site.example.com
+      exposure: tailnet
