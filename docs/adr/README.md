@@ -6,7 +6,8 @@ split into individual records here.
 
 Cross-repository and trust-boundary decisions live in the
 [`architecture`](https://github.com/MGconsulting/architecture) repository
-instead; ADR 0009 below is under review by architecture ADR 0012.
+instead; architecture ADR 0012 (accepted 2026-08-21) supersedes ADR 0009 below
+on node placement and adds a tenancy block to the format.
 
 | ADR | Status | Decision |
 | --- | --- | --- |
@@ -18,7 +19,7 @@ instead; ADR 0009 below is under review by architecture ADR 0012.
 | [0006](0006-canonical-json-as-retained-artifact.md) | Accepted | Retain canonical JSON as the deployment artifact; never reparse source YAML. |
 | [0007](0007-corpus-is-authoritative-desired-state.md) | Accepted | Treat the complete corpus as authoritative desired state; absence means removal. |
 | [0008](0008-release-platforms-and-artifacts.md) | Accepted | Publish reproducible cross-platform artifacts with checksums, SBOM, and provenance. |
-| [0009](0009-v1alpha1-document-shape.md) | Accepted | Define the multi-service v1alpha1 document shape. |
+| [0009](0009-v1alpha1-document-shape.md) | Accepted; placement and tenancy scope superseded by architecture ADR 0012 | Define the multi-service v1alpha1 document shape. |
 
 ## Template
 

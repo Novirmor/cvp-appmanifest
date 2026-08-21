@@ -1,6 +1,7 @@
 # ADR 0009: Define the v1alpha1 Document Shape
 
-- Status: Accepted
+- Status: Accepted; placement and tenancy scope superseded by architecture
+  ADR 0012 (2026-08-21)
 - Date: 2026-08-14
 
 ## Context
@@ -58,12 +59,22 @@ sandboxing, reconciliation, rollback, and runtime naming.
 
 ## Consequences
 
-`stages.<name>.target.host` is required, so a document names the node it runs
-on.
+`stages.<name>.target.host` is required in the shape recorded above, so a
+document names the node it runs on.
 
-**Under review:** architecture
+**Superseded on two points.** Architecture
 [ADR 0012](https://github.com/MGconsulting/architecture/blob/main/docs/adr/0012-appmanifest-scope-and-placement.md)
-(Proposed) would remove `target.host` in favor of executor-resolved placement,
-and add a `platform` block carrying tenancy requests. Both are breaking changes
-to `v1alpha1`, deliberately taken while no executor consumes the format. If
-that ADR is accepted, this ADR is superseded on those two points.
+was accepted on 2026-08-21 and changes this shape:
+
+- `stages.<name>.target.host` is **removed**. A stage may declare placement
+  constraints; the executor resolves them against the infrastructure placement
+  catalog. The contract no longer names a node.
+- A per-stage `platform` block is **added**, carrying opaque tenancy requests
+  (`postgres`, `rabbitmq`, `redis`, `openbao`) so the corpus can be the single
+  catalog the platform reconciler compiles from.
+
+Both are breaking changes to `v1alpha1`, deliberately taken while no executor
+consumes the format. Everything else in this ADR — multi-service applications,
+the three exposure levels, stage-level opaque secrets, and the executor-policy
+exclusions — stands unchanged. Implementation is tracked as T-P1-025 through
+T-P1-027 in the architecture repository.
