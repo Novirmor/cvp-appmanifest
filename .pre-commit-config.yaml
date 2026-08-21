@@ -23,7 +23,9 @@ repos:
     hooks:
       - id: gofmt
         name: gofmt
-        entry: gofmt -l -w .
+        # pass_filenames (default true): gofmt receives the changed files, not
+        # the repository directory, which `gofmt -l -w .` rejected.
+        entry: gofmt -l -w
         language: system
         types: [go]
       - id: go-test

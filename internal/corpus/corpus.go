@@ -95,6 +95,13 @@ func ValidateAll(files []string) ([]Document, diagnostic.List, error) {
 			doc.Decoded = decoded
 			doc.Diagnostics = append(doc.Diagnostics, validation.ValidateSchema(decoded)...)
 			doc.Diagnostics = append(doc.Diagnostics, validation.ValidateSemantic(decoded)...)
+			// Schema/semantic diagnostics do not know their file; stamp it so
+			// corpus output always locates the offending document.
+			for i := range doc.Diagnostics {
+				if doc.Diagnostics[i].File == "" {
+					doc.Diagnostics[i].File = f
+				}
+			}
 			if !doc.Diagnostics.HasErrors() {
 				canonical, err := normalize.Canonical(decoded)
 				if err != nil {
