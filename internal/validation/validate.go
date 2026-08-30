@@ -16,10 +16,11 @@ import (
 
 	"github.com/MGconsulting/appmanifest/internal/diagnostic"
 	v1alpha1 "github.com/MGconsulting/appmanifest/schema/v1alpha1"
+	v1alpha2 "github.com/MGconsulting/appmanifest/schema/v1alpha2"
 )
 
 // SupportedAPIVersions lists the API versions this validator release accepts.
-var SupportedAPIVersions = []string{v1alpha1.APIVersion}
+var SupportedAPIVersions = []string{v1alpha1.APIVersion, v1alpha2.APIVersion}
 
 var hostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
 
@@ -34,25 +35,31 @@ func (forbiddenLoader) Load(_ string) (any, error) {
 	return nil, errors.New("network $ref resolution is forbidden")
 }
 
-func compileSchema() (*jsonschema.Schema, error) {
+func compileSchema(apiVersion string, schema []byte) (*jsonschema.Schema, error) {
 	var schemaDoc any
-	if err := json.Unmarshal(v1alpha1.Schema, &schemaDoc); err != nil {
+	if err := json.Unmarshal(schema, &schemaDoc); err != nil {
 		return nil, fmt.Errorf("decode schema: %w", err)
 	}
 	c := jsonschema.NewCompiler()
 	c.UseLoader(forbiddenLoader{})
-	if err := c.AddResource(v1alpha1.APIVersion, schemaDoc); err != nil {
+	if err := c.AddResource(apiVersion, schemaDoc); err != nil {
 		return nil, fmt.Errorf("register schema: %w", err)
 	}
-	return c.Compile(v1alpha1.APIVersion)
+	return c.Compile(apiVersion)
 }
 
-// ValidateSchema checks the decoded manifest against the v1alpha1 schema.
+// ValidateSchema checks the decoded manifest against the schema matching its apiVersion.
 func ValidateSchema(doc map[string]any) diagnostic.List {
 	var out diagnostic.List
 
 	apiVersion, _ := doc["apiVersion"].(string)
-	if apiVersion != v1alpha1.APIVersion {
+	var schema []byte
+	switch apiVersion {
+	case v1alpha1.APIVersion:
+		schema = v1alpha1.Schema
+	case v1alpha2.APIVersion:
+		schema = v1alpha2.Schema
+	default:
 		out.Add(diagnostic.Diagnostic{
 			Code:     "UNSUPPORTED_API_VERSION",
 			Severity: diagnostic.SeverityError,
@@ -62,7 +69,7 @@ func ValidateSchema(doc map[string]any) diagnostic.List {
 		return out
 	}
 
-	sch, err := compileSchema()
+	sch, err := compileSchema(apiVersion, schema)
 	if err != nil {
 		out.Add(diagnostic.Diagnostic{
 			Code:     "INTERNAL_SCHEMA_ERROR",
@@ -121,6 +128,15 @@ func instancePath(segments []string) string {
 
 // ValidateSemantic runs per-document checks that JSON Schema cannot express.
 func ValidateSemantic(doc map[string]any) diagnostic.List {
+	apiVersion, _ := doc["apiVersion"].(string)
+	out := validateCommon(doc)
+	if apiVersion == v1alpha2.APIVersion {
+		out = append(out, validateV1alpha2(doc)...)
+	}
+	return out
+}
+
+func validateCommon(doc map[string]any) diagnostic.List {
 	var out diagnostic.List
 
 	services, _ := doc["services"].(map[string]any)
@@ -264,6 +280,95 @@ func ValidateSemantic(doc map[string]any) diagnostic.List {
 					})
 				}
 			}
+		}
+	}
+	return out
+}
+
+func validateV1alpha2(doc map[string]any) diagnostic.List {
+	var out diagnostic.List
+	services, _ := doc["services"].(map[string]any)
+	stages, _ := doc["stages"].(map[string]any)
+	for stageName, rawStage := range stages {
+		stage, _ := rawStage.(map[string]any)
+		platform, _ := stage["platform"].(map[string]any)
+		secrets, _ := stage["secrets"].(map[string]any)
+		if redis, ok := platform["redis"].(map[string]any); ok {
+			passwordSecret, _ := redis["passwordSecret"].(string)
+			if _, exists := secrets[passwordSecret]; !exists {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "MISSING_REDIS_PASSWORD_SECRET",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.platform.redis.passwordSecret", stageName),
+					Message:  fmt.Sprintf("Redis request in stage %q references undeclared stage secret %q", stageName, passwordSecret),
+				})
+			}
+		}
+		stageServices, _ := stage["services"].(map[string]any)
+		lifecycle, _ := stage["lifecycle"].(string)
+		for serviceName, rawStageService := range stageServices {
+			stageService, _ := rawStageService.(map[string]any)
+			runtime, _ := stageService["runtime"].(map[string]any)
+			relaxed, _ := runtime["relaxed"].(bool)
+			user, hasUser := runtime["user"].(string)
+			if lifecycle != "retiring" && lifecycle != "purge" && !relaxed && (!hasUser || user == "") {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "MISSING_NONROOT_RUNTIME",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s.runtime", stageName, serviceName),
+					Message:  fmt.Sprintf("active v1alpha2 service %q in stage %q must declare runtime.user or runtime.relaxed: true", serviceName, stageName),
+				})
+			}
+			if _, hasSmoke := stageService["smokePath"]; hasSmoke {
+				exposure, _ := stageService["exposure"].(string)
+				if exposure == "internal" {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "SMOKE_REQUIRES_ROUTE",
+						Severity: diagnostic.SeverityError,
+						Path:     fmt.Sprintf("$.stages.%s.services.%s.smokePath", stageName, serviceName),
+						Message:  fmt.Sprintf("smokePath for service %q in stage %q requires public or tailnet exposure", serviceName, stageName),
+					})
+				}
+			}
+			if forwardAuth, _ := stageService["forwardAuth"].(bool); forwardAuth {
+				exposure, _ := stageService["exposure"].(string)
+				if exposure != "tailnet" {
+					out.Add(diagnostic.Diagnostic{
+						Code:     "FORWARDAUTH_REQUIRES_TAILNET_ROUTE",
+						Severity: diagnostic.SeverityError,
+						Path:     fmt.Sprintf("$.stages.%s.services.%s.forwardAuth", stageName, serviceName),
+						Message:  fmt.Sprintf("forwardAuth for service %q in stage %q requires tailnet exposure", serviceName, stageName),
+					})
+				}
+			}
+			writableTmpfsPaths, _ := runtime["writableTmpfsPaths"].([]any)
+			if relaxed && len(writableTmpfsPaths) > 0 {
+				out.Add(diagnostic.Diagnostic{
+					Code:     "RELAXED_RUNTIME_HAS_TMPFS_PATHS",
+					Severity: diagnostic.SeverityError,
+					Path:     fmt.Sprintf("$.stages.%s.services.%s.runtime.writableTmpfsPaths", stageName, serviceName),
+					Message:  fmt.Sprintf("service %q in stage %q is runtime.relaxed and cannot declare read-only-runtime tmpfs paths", serviceName, stageName),
+				})
+			}
+		}
+		requestedEngines := make(map[string]bool, len(platform))
+		for engine := range platform {
+			requestedEngines[engine] = true
+		}
+		for _, rawService := range services {
+			service, _ := rawService.(map[string]any)
+			dataServices, _ := service["dataServices"].([]any)
+			for _, rawEngine := range dataServices {
+				delete(requestedEngines, rawEngine.(string))
+			}
+		}
+		for engine := range requestedEngines {
+			out.Add(diagnostic.Diagnostic{
+				Code:     "UNUSED_PLATFORM_SERVICE",
+				Severity: diagnostic.SeverityError,
+				Path:     fmt.Sprintf("$.stages.%s.platform.%s", stageName, engine),
+				Message:  fmt.Sprintf("stage %q requests platform service %q but no service declares it in dataServices", stageName, engine),
+			})
 		}
 	}
 	return out

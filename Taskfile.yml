@@ -43,9 +43,10 @@ tasks:
           CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
             go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}}" \
             -o "dist/$name" ./cmd/appmanifest
-        done
-        cp schema/v1alpha1/appmanifest.schema.json dist/appmanifest.schema.json
-        (cd dist && sha256sum * > SHA256SUMS)
+         done
+         cp schema/v1alpha1/appmanifest.schema.json dist/appmanifest.schema.json
+         cp schema/v1alpha2/appmanifest.schema.json dist/appmanifest.v1alpha2.schema.json
+         (cd dist && sha256sum * > SHA256SUMS)
 
   release:
     desc: Verify artifacts and print the release summary (tagging is manual)

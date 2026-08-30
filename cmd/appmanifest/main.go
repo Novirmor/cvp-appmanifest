@@ -53,6 +53,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  appmanifest validate --corpus <dir> [--json]")
 	fmt.Fprintln(os.Stderr, "  appmanifest validate --file <path> [--json]")
 	fmt.Fprintln(os.Stderr, "  appmanifest normalize --file <path>")
+	fmt.Fprintln(os.Stderr, "  appmanifest normalize --corpus <dir>")
 	fmt.Fprintln(os.Stderr, "  appmanifest version")
 }
 
@@ -128,12 +129,16 @@ func cmdValidate(args []string) int {
 func cmdNormalize(args []string) int {
 	fs := flag.NewFlagSet("normalize", flag.ContinueOnError)
 	file := fs.String("file", "", "deployment document to normalize to canonical JSON")
+	corpusDir := fs.String("corpus", "", "directory of deployment documents to normalize to a canonical JSON envelope")
 	if err := fs.Parse(args); err != nil {
 		return exitOper
 	}
-	if *file == "" || fs.NArg() != 0 {
+	if (*file == "") == (*corpusDir == "") || fs.NArg() != 0 {
 		usage()
 		return exitOper
+	}
+	if *corpusDir != "" {
+		return cmdNormalizeCorpus(*corpusDir)
 	}
 	data, err := os.ReadFile(*file)
 	if err != nil {
@@ -158,6 +163,35 @@ func cmdNormalize(args []string) int {
 		return exitInvalid
 	}
 	out, err := json.MarshalIndent(canonical, "", "  ")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitOper
+	}
+	fmt.Println(string(out))
+	return exitOK
+}
+
+func cmdNormalizeCorpus(dir string) int {
+	files, err := corpus.Discover(dir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitOper
+	}
+	docs, diags, err := corpus.ValidateAll(files)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitOper
+	}
+	if diags.HasErrors() {
+		fmt.Fprint(os.Stderr, diags.Human())
+		return exitInvalid
+	}
+	envelope, err := corpus.Envelope(docs)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitOper
+	}
+	out, err := json.MarshalIndent(envelope, "", "  ")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return exitOper

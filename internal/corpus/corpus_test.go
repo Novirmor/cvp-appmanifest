@@ -1,8 +1,10 @@
 package corpus
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,6 +127,68 @@ func TestValidCorpusPasses(t *testing.T) {
 	}
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Human())
+	}
+}
+
+func TestEnvelopeSortsApplicationsAndRetainsOpaqueSecretReferences(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "a.yaml", `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: zeta
+services:
+  web:
+    source: {image: example/web:1}
+stages:
+  prod:
+    secrets: {password: {secretRef: opaque-reference}}
+    services:
+      web: {exposure: internal, runtime: {relaxed: true}}
+`)
+	writeFile(t, dir, "z.yaml", `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: alpha
+services:
+  web:
+    source: {image: example/web:1}
+stages:
+  prod:
+    services:
+      web: {exposure: internal, runtime: {relaxed: true}}
+`)
+	files, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("discover: %v", err)
+	}
+	docs, diags, err := ValidateAll(files)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Human())
+	}
+	envelope, err := Envelope(docs)
+	if err != nil {
+		t.Fatalf("envelope: %v", err)
+	}
+	if envelope.APIVersion != CanonicalEnvelopeAPIVersion {
+		t.Fatalf("apiVersion = %q", envelope.APIVersion)
+	}
+	if envelope.Applications[0]["name"] != "alpha" || envelope.Applications[1]["name"] != "zeta" {
+		t.Fatalf("applications are not sorted: %v", envelope.Applications)
+	}
+	first, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal first: %v", err)
+	}
+	second, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal second: %v", err)
+	}
+	if string(first) != string(second) {
+		t.Fatalf("envelope is not deterministic: %s != %s", first, second)
+	}
+	if string(first) == "" || !strings.Contains(string(first), "opaque-reference") || strings.Contains(string(first), dir) {
+		t.Fatalf("envelope lost opaque references or exposed source paths: %s", first)
 	}
 }
 

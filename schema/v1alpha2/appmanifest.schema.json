@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.mgconsulting.io/appmanifest/v1alpha2/appmanifest.schema.json",
+  "title": "Application manifest v1alpha2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "name", "services", "stages"],
+  "properties": {
+    "apiVersion": {"const": "appmanifest.mgconsulting.io/v1alpha2"},
+    "name": {"description": "Stable logical application identity. The filename is not identity.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,30}$"},
+    "services": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,30}$"},
+      "patternProperties": {"^[a-z][a-z0-9-]{0,30}$": {"$ref": "#/$defs/service"}},
+      "additionalProperties": false
+    },
+    "volumes": {
+      "description": "Named persistent volumes shared by the application's stages.",
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,63}$"},
+      "additionalProperties": {"$ref": "#/$defs/volume"}
+    },
+    "stages": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z0-9][a-z0-9-]{0,30}$"},
+      "patternProperties": {"^[a-z0-9][a-z0-9-]{0,30}$": {"$ref": "#/$defs/stage"}},
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "oneOf": [{"required": ["image"]}, {"required": ["repository"]}],
+          "properties": {
+            "image": {"description": "Prebuilt container image reference, optionally with tag or sha256 digest.", "type": "string", "maxLength": 512, "pattern": "^[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9._-]{1,127})?(?:@sha256:[a-f0-9]{64})?$"},
+            "repository": {"description": "HTTPS Git URL without embedded credentials.", "type": "string", "maxLength": 512, "pattern": "^https://[A-Za-z0-9._-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$"},
+            "build": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "context": {"type": "string", "minLength": 1, "pattern": "^(\\.|\\./)?([A-Za-z0-9._-]+/?)*$", "not": {"pattern": "\\.\\."}, "default": "."},
+                "dockerfile": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._-][A-Za-z0-9._/-]*$", "not": {"pattern": "\\.\\."}, "default": "Dockerfile"}
+              }
+            }
+          }
+        },
+        "httpPort": {"description": "Plain-HTTP port the router forwards to. Required only when a stage exposes the service publicly or on the tailnet.", "type": "integer", "minimum": 1, "maximum": 65535},
+        "dataServices": {"description": "Portable data engines the service needs in every stage where it is deployed.", "type": "array", "uniqueItems": true, "items": {"enum": ["postgres", "rabbitmq", "redis"]}},
+        "volumes": {"type": "array", "items": {"$ref": "#/$defs/volumeMount"}}
+      }
+    },
+    "volume": {"type": "object", "additionalProperties": false},
+    "volumeMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+        "path": {"description": "Absolute container path the named volume is mounted at.", "type": "string", "minLength": 2, "maxLength": 255, "pattern": "^/[A-Za-z0-9._][A-Za-z0-9._/-]*$", "not": {"pattern": "\\.\\."}}
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["services"],
+      "properties": {
+        "lifecycle": {
+          "description": "Stage lifecycle. Retiring removes runtime while retaining tenant data; purge authorizes tenant data removal after retirement evidence.",
+          "enum": ["active", "retiring", "purge"],
+          "default": "active"
+        },
+        "placement": {
+          "description": "Portable placement constraints resolved by the executor.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requireComponents": {"type": "array", "minItems": 1, "uniqueItems": true, "contains": {"const": "workload"}, "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"}, "default": ["workload"]}
+          }
+        },
+        "platform": {
+          "description": "Portable platform tenancy requests for this application stage.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "postgres": {"type": "object", "maxProperties": 0},
+            "rabbitmq": {"type": "object", "maxProperties": 0},
+            "redis": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["passwordSecret"],
+              "properties": {
+                "passwordSecret": {"description": "Name of a stage secret containing the Redis ACL password. The platform resolves its opaque reference, never a manifest value.", "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}
+              }
+            }
+          }
+        },
+        "secrets": {
+          "description": "Stage secret material. Consumed as env values or as Docker-secrets-style files at /run/secrets/<name>.",
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+          "additionalProperties": {"$ref": "#/$defs/secretSource"}
+        },
+        "services": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,30}$"},
+          "additionalProperties": {"$ref": "#/$defs/stageService"}
+        }
+      }
+    },
+    "secretSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretRef"],
+      "properties": {"secretRef": {"description": "Opaque secret reference resolved by the controller.", "type": "string", "minLength": 1, "maxLength": 255, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"}}
+    },
+    "stageService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exposure"],
+      "properties": {
+        "revision": {"type": "string", "maxLength": 255, "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"},
+        "exposure": {"enum": ["public", "tailnet", "internal"]},
+        "hostname": {"type": "string", "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"},
+        "environment": {"type": "object", "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}, "additionalProperties": {"$ref": "#/$defs/environmentEntry"}},
+        "mounts": {"description": "Secrets mounted as files under /run/secrets/<name>.", "type": "array", "items": {"$ref": "#/$defs/secretMount"}},
+        "runtime": {
+          "description": "Per-service runtime hardening. Active services run non-root with a read-only root filesystem unless relaxed is explicitly set.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "user": {"description": "Numeric non-root uid, optionally with a numeric gid.", "type": "string", "pattern": "^[1-9][0-9]{0,9}(:[1-9][0-9]{0,9})?$"},
+            "relaxed": {"description": "Reviewed compatibility exception to the default non-root, read-only runtime.", "type": "boolean", "default": false},
+            "writableTmpfsPaths": {"description": "Additional absolute container paths backed by writable tmpfs when the root filesystem is read-only.", "type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 2, "maxLength": 255, "pattern": "^/[A-Za-z0-9._][A-Za-z0-9._/-]*$", "not": {"pattern": "\\.\\."}}}
+          }
+        },
+        "forwardAuth": {"description": "Attach the infrastructure-owned HTTP forward-auth middleware to this routed service.", "type": "boolean", "default": false},
+        "smokePath": {"description": "Optional routed HTTP path that must return 2xx before this service is published.", "type": "string", "minLength": 1, "maxLength": 255, "pattern": "^/[A-Za-z0-9._~/%-]*$"},
+        "meshTcp": {
+          "description": "Optional TCP router exposed on an infrastructure-owned mesh entrypoint.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entrypoint", "port"],
+          "properties": {
+            "entrypoint": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,30}$"},
+            "port": {"description": "Container TCP port served by the mesh router.", "type": "integer", "minimum": 1, "maximum": 65535}
+          }
+        }
+      }
+    },
+    "secretMount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secret"],
+      "properties": {"secret": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}}
+    },
+    "environmentEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [{"required": ["value"]}, {"required": ["secret"]}],
+      "properties": {
+        "value": {"description": "Literal string value. Never place secret material here.", "type": "string"},
+        "secret": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}
+      }
+    }
+  }
+}

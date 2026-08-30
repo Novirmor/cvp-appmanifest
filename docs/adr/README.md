@@ -20,6 +20,7 @@ on node placement and adds a tenancy block to the format.
 | [0007](0007-corpus-is-authoritative-desired-state.md) | Accepted | Treat the complete corpus as authoritative desired state; absence means removal. |
 | [0008](0008-release-platforms-and-artifacts.md) | Accepted | Publish reproducible cross-platform artifacts with checksums, SBOM, and provenance. |
 | [0009](0009-v1alpha1-document-shape.md) | Accepted; placement and tenancy scope superseded by architecture ADR 0012 | Define the multi-service v1alpha1 document shape. |
+| [0010](0010-v1alpha2-portable-stages.md) | Proposed | Add portable stages and portable data-engine requests in v1alpha2. |
 
 ## Template
 

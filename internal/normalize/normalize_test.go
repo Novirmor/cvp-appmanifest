@@ -96,3 +96,33 @@ func TestCanonicalPreservesExplicitValues(t *testing.T) {
 		t.Fatalf("explicit values lost: %v", build)
 	}
 }
+
+func TestCanonicalV1alpha2DefaultsPlacement(t *testing.T) {
+	doc := baseDoc()
+	doc["apiVersion"] = "appmanifest.mgconsulting.io/v1alpha2"
+	delete(doc["stages"].(map[string]any)["prod"].(map[string]any), "target")
+	canonical, err := Canonical(doc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	placement := canonical["stages"].(map[string]any)["prod"].(map[string]any)["placement"].(map[string]any)
+	stage := canonical["stages"].(map[string]any)["prod"].(map[string]any)
+	if stage["lifecycle"] != "active" {
+		t.Fatalf("lifecycle default wrong: %v", stage["lifecycle"])
+	}
+	components := placement["requireComponents"].([]any)
+	if len(components) != 1 || components[0] != "workload" {
+		t.Fatalf("placement defaults wrong: %v", placement)
+	}
+}
+
+func TestCanonicalV1alpha1DoesNotAddPlacement(t *testing.T) {
+	canonical, err := Canonical(baseDoc())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	stage := canonical["stages"].(map[string]any)["prod"].(map[string]any)
+	if _, ok := stage["placement"]; ok {
+		t.Fatal("v1alpha1 must not receive v1alpha2 placement defaults")
+	}
+}

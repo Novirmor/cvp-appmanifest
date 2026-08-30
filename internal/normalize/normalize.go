@@ -2,12 +2,18 @@
 // deterministic canonical value model for an application manifest.
 package normalize
 
-import "fmt"
+import (
+	"fmt"
+
+	v1alpha2 "github.com/MGconsulting/appmanifest/schema/v1alpha2"
+)
 
 // Canonical returns a new value model with defaults applied. It never mutates
-// the input. Defaults for v1alpha1: repository-build contexts default to "." and
-// "Dockerfile"; missing service volume lists, stage secret maps, stage-service
-// environments, and mounts become empty collections.
+// the input. Defaults for both versions: repository-build contexts default to
+// "." and "Dockerfile"; missing service volume lists, stage secret maps,
+// stage-service environments, and mounts become empty collections. v1alpha2
+// also defaults lifecycle to "active" and placement.requireComponents to
+// ["workload"].
 func Canonical(doc map[string]any) (map[string]any, error) {
 	out := copyMap(doc)
 
@@ -54,6 +60,19 @@ func Canonical(doc map[string]any) (map[string]any, error) {
 		if _, ok := stage["secrets"]; !ok {
 			stage["secrets"] = map[string]any{}
 		}
+		if out["apiVersion"] == v1alpha2.APIVersion {
+			if _, ok := stage["lifecycle"]; !ok {
+				stage["lifecycle"] = "active"
+			}
+			placement, ok := stage["placement"].(map[string]any)
+			if !ok {
+				placement = map[string]any{}
+				stage["placement"] = placement
+			}
+			if _, ok := placement["requireComponents"]; !ok {
+				placement["requireComponents"] = []any{"workload"}
+			}
+		}
 		stageServices, ok := stage["services"].(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("stages.%s.services: expected mapping", stageName)
@@ -68,6 +87,22 @@ func Canonical(doc map[string]any) (map[string]any, error) {
 			}
 			if _, ok := ss["mounts"]; !ok {
 				ss["mounts"] = []any{}
+			}
+			if out["apiVersion"] == v1alpha2.APIVersion {
+				runtime, ok := ss["runtime"].(map[string]any)
+				if !ok {
+					runtime = map[string]any{}
+					ss["runtime"] = runtime
+				}
+				if _, ok := runtime["relaxed"]; !ok {
+					runtime["relaxed"] = false
+				}
+				if _, ok := runtime["writableTmpfsPaths"]; !ok {
+					runtime["writableTmpfsPaths"] = []any{}
+				}
+				if _, ok := ss["forwardAuth"]; !ok {
+					ss["forwardAuth"] = false
+				}
 			}
 		}
 	}

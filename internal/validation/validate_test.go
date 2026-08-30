@@ -36,6 +36,21 @@ stages:
         hostname: app.example.com
 `
 
+const minimalAppV2 = `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: app
+services:
+  web:
+    source:
+      image: example/web:1
+stages:
+  prod:
+    services:
+      web:
+        exposure: internal
+        runtime: {relaxed: true}
+`
+
 func hasCode(diags diagnosticList, code string) bool {
 	for _, d := range diags {
 		if d.Code == code {
@@ -57,6 +72,91 @@ func TestValidateSchemaUnsupportedAPIVersion(t *testing.T) {
 	diags := ValidateSchema(doc)
 	if !hasCode(diags, "UNSUPPORTED_API_VERSION") {
 		t.Fatalf("missing UNSUPPORTED_API_VERSION: %s", diags.Human())
+	}
+}
+
+func TestValidateSchemaV1alpha2PortableStage(t *testing.T) {
+	diags := ValidateSchema(load(t, minimalAppV2))
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Human())
+	}
+}
+
+func TestValidateSchemaV1alpha1DoesNotAcceptV1alpha2Fields(t *testing.T) {
+	doc := load(t, minimalApp+"\n    placement: {}\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected v1alpha1 to reject placement")
+	}
+}
+
+func TestValidateSchemaV1alpha2DoesNotAcceptTarget(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    target: {host: edge-1}\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected v1alpha2 to reject target")
+	}
+}
+
+func TestValidateSchemaV1alpha2PlacementRequiresWorkload(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    placement:\n      requireComponents: [postgres]\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected placement without workload to be rejected")
+	}
+}
+
+func TestValidateSchemaV1alpha2PlatformRequestsAreEmptyObjects(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    platform:\n      postgres:\n        database: true\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected non-empty platform request to be rejected")
+	}
+}
+
+func TestValidateSchemaV1alpha2RedisRequiresPasswordSecret(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    platform:\n      redis: {}\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected Redis request without passwordSecret to be rejected")
+	}
+}
+
+func TestValidateSchemaV1alpha2PlatformRequiresAnEngine(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    platform: {}\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected empty platform request to be rejected")
+	}
+}
+
+func TestValidateSchemaV1alpha2Lifecycle(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    lifecycle: retiring\n")
+	if diags := ValidateSchema(doc); diags.HasErrors() {
+		t.Fatalf("expected lifecycle to be accepted: %s", diags.Human())
+	}
+	doc = load(t, minimalAppV2+"\n    lifecycle: deleted\n")
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected unknown lifecycle to be rejected")
+	}
+}
+
+func TestSemanticV1alpha2RedisPasswordSecretMustExist(t *testing.T) {
+	doc := load(t, minimalAppV2+"\n    platform:\n      redis: {passwordSecret: redis_password}\n")
+	if diags := ValidateSemantic(doc); !hasCode(diags, "MISSING_REDIS_PASSWORD_SECRET") {
+		t.Fatalf("expected MISSING_REDIS_PASSWORD_SECRET: %s", diags.Human())
+	}
+}
+
+func TestValidateSchemaV1alpha2DataServicesAreConstrained(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: app
+services:
+  web:
+    source: {image: example/web:1}
+    dataServices: [openbao]
+stages:
+  prod:
+    services:
+      web: {exposure: internal}
+`)
+	if diags := ValidateSchema(doc); !diags.HasErrors() {
+		t.Fatal("expected unknown data service to be rejected")
 	}
 }
 
@@ -365,5 +465,89 @@ stages:
 	diags := ValidateSemantic(doc)
 	if !hasCode(diags, "DUPLICATE_HOSTNAME") {
 		t.Fatalf("missing DUPLICATE_HOSTNAME: %s", diags.Human())
+	}
+}
+
+func TestSemanticV1alpha2DataServiceDoesNotRequireTenancy(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: app
+services:
+  web:
+    source: {image: example/web:1}
+    dataServices: [postgres, redis]
+stages:
+  prod:
+    services:
+      web: {exposure: internal, runtime: {relaxed: true}}
+`)
+	if diags := ValidateSemantic(doc); diags.HasErrors() {
+		t.Fatalf("data network access must not create a tenancy requirement: %s", diags.Human())
+	}
+}
+
+func TestSemanticV1alpha2DataServicesMayUseRequestedTenancy(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: app
+services:
+  web:
+    source: {image: example/web:1}
+    dataServices: [postgres, rabbitmq, redis]
+stages:
+  prod:
+    platform:
+      postgres: {}
+      rabbitmq: {}
+      redis: {passwordSecret: redis_password}
+    secrets:
+      redis_password: {secretRef: opaque-reference}
+    services:
+      web: {exposure: internal, runtime: {relaxed: true}}
+`)
+	if diags := ValidateSemantic(doc); diags.HasErrors() {
+		t.Fatalf("unexpected semantic errors: %s", diags.Human())
+	}
+}
+
+func TestSemanticV1alpha2RuntimeAndRouteGuards(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: app
+services:
+  web:
+    source: {image: example/web:1}
+stages:
+  prod:
+    services:
+      web:
+        exposure: internal
+        forwardAuth: true
+        smokePath: /
+`)
+	diags := ValidateSemantic(doc)
+	for _, code := range []string{"MISSING_NONROOT_RUNTIME", "FORWARDAUTH_REQUIRES_TAILNET_ROUTE", "SMOKE_REQUIRES_ROUTE"} {
+		if !hasCode(diags, code) {
+			t.Fatalf("missing %s: %s", code, diags.Human())
+		}
+	}
+}
+
+func TestSemanticV1alpha2RejectsUnusedPlatformRequest(t *testing.T) {
+	doc := load(t, `
+apiVersion: appmanifest.mgconsulting.io/v1alpha2
+name: app
+services:
+  web:
+    source: {image: example/web:1}
+stages:
+  prod:
+    platform:
+      postgres: {}
+    services:
+      web: {exposure: internal, runtime: {relaxed: true}}
+`)
+	if diags := ValidateSemantic(doc); !hasCode(diags, "UNUSED_PLATFORM_SERVICE") {
+		t.Fatalf("missing UNUSED_PLATFORM_SERVICE: %s", diags.Human())
 	}
 }

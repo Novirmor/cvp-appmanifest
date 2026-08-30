@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/MGconsulting/appmanifest/internal/diagnostic"
@@ -13,6 +14,9 @@ import (
 	"github.com/MGconsulting/appmanifest/internal/normalize"
 	"github.com/MGconsulting/appmanifest/internal/validation"
 )
+
+// CanonicalEnvelopeAPIVersion identifies the retained corpus artifact format.
+const CanonicalEnvelopeAPIVersion = "appmanifest.mgconsulting.io/corpus/v1alpha1"
 
 // MaxFiles bounds the number of documents per corpus.
 const MaxFiles = 1000
@@ -23,6 +27,13 @@ type Document struct {
 	Decoded     map[string]any
 	Canonical   map[string]any
 	Diagnostics diagnostic.List
+}
+
+// CanonicalEnvelope is the portable, source-independent corpus artifact.
+// Applications are ordered by logical name, not by input path.
+type CanonicalEnvelope struct {
+	APIVersion   string           `json:"apiVersion"`
+	Applications []map[string]any `json:"applications"`
 }
 
 // Discover returns the top-level *.yaml files of dir in sorted order. .yml
@@ -123,6 +134,49 @@ func ValidateAll(files []string) ([]Document, diagnostic.List, error) {
 	all = append(all, crossDocumentChecks(docs)...)
 	all.Sort()
 	return docs, all, nil
+}
+
+// Envelope returns canonical documents sorted by application name. It omits
+// corpus source paths. Stage secret maps contain opaque references, not secret
+// values, and remain available to the executor for approved resolution.
+func Envelope(docs []Document) (CanonicalEnvelope, error) {
+	applications := make([]map[string]any, 0, len(docs))
+	for _, doc := range docs {
+		if doc.Canonical == nil {
+			return CanonicalEnvelope{}, fmt.Errorf("cannot create an envelope from an invalid corpus")
+		}
+		applications = append(applications, cloneMap(doc.Canonical))
+	}
+	sort.Slice(applications, func(i, j int) bool {
+		return applications[i]["name"].(string) < applications[j]["name"].(string)
+	})
+	return CanonicalEnvelope{
+		APIVersion:   CanonicalEnvelopeAPIVersion,
+		Applications: applications,
+	}, nil
+}
+
+func cloneMap(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = clone(value)
+	}
+	return out
+}
+
+func clone(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = clone(item)
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func crossDocumentChecks(docs []Document) diagnostic.List {
