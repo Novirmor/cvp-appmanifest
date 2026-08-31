@@ -29,6 +29,11 @@ tasks:
 
   artifact:
     desc: Build reproducible release artifacts, schema assets, and checksums
+    vars:
+      VERSION:
+        sh: git describe --tags --exact-match 2>/dev/null || echo dev
+      COMMIT:
+        sh: git rev-parse --short HEAD
     cmds:
       - |
         set -euo pipefail
