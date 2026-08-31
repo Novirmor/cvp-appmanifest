@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   lint:
-    uses: Novirmor/cvp-cicd/.github/workflows/lint.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    uses: Novirmor/cvp-cicd/.github/workflows/lint.yml@841fab16fcdd432f0e1e8980a41be557d8d9849a # main
     with:
       cache-paths: |
         ~/.local/share/mise
@@ -26,7 +26,7 @@ jobs:
       contents: read
 
   test:
-    uses: Novirmor/cvp-cicd/.github/workflows/test.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    uses: Novirmor/cvp-cicd/.github/workflows/test.yml@841fab16fcdd432f0e1e8980a41be557d8d9849a # main
     with:
       cache-paths: |
         ~/.local/share/mise
@@ -39,6 +39,6 @@ jobs:
       contents: read
 
   security:
-    uses: Novirmor/cvp-cicd/.github/workflows/security.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    uses: Novirmor/cvp-cicd/.github/workflows/security.yml@841fab16fcdd432f0e1e8980a41be557d8d9849a # main
     permissions:
       contents: read

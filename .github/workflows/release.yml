@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   artifact:
-    uses: Novirmor/cvp-cicd/.github/workflows/artifact.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    uses: Novirmor/cvp-cicd/.github/workflows/artifact.yml@841fab16fcdd432f0e1e8980a41be557d8d9849a # main
     with:
       artifact-name: appmanifest-${{ inputs.tag }}-dist
       artifact-path: dist/*
@@ -24,7 +24,7 @@ jobs:
 
   release:
     needs: artifact
-    uses: Novirmor/cvp-cicd/.github/workflows/release.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    uses: Novirmor/cvp-cicd/.github/workflows/release.yml@841fab16fcdd432f0e1e8980a41be557d8d9849a # main
     with:
       release-tag: ${{ inputs.tag }}
       source-artifact-name: appmanifest-${{ inputs.tag }}-dist
