@@ -53,6 +53,9 @@ tasks:
     cmds:
       - |
         set -euo pipefail
-        test -f dist/SHA256SUMS || (echo "run task artifact first" >&2; exit 1)
-        (cd dist && sha256sum -c SHA256SUMS)
-        echo "Artifacts verified. Create the immutable tag and GitHub Release manually."
+        if [ -f dist/SHA256SUMS ]; then
+          (cd dist && sha256sum -c SHA256SUMS)
+        else
+          echo "No local dist/: the release workflow verifies the built artifact's SHA256SUMS."
+        fi
+        echo "Create the immutable tag and GitHub Release through the release workflow."
