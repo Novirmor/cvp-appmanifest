@@ -1,0 +1,32 @@
+---
+name: Release
+
+"on":
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable tag to release, for example v0.1.0.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  artifact:
+    uses: Novirmor/cvp-cicd/.github/workflows/artifact.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    with:
+      artifact-name: appmanifest-${{ inputs.tag }}-dist
+      artifact-path: dist/*
+      ref: ${{ inputs.tag }}
+    permissions:
+      contents: read
+
+  release:
+    needs: artifact
+    uses: Novirmor/cvp-cicd/.github/workflows/release.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
+    with:
+      release-tag: ${{ inputs.tag }}
+      source-artifact-name: appmanifest-${{ inputs.tag }}-dist
+    permissions:
+      contents: write
