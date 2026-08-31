@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   lint:
-    uses: MGconsulting/.github/.github/workflows/lint.yml@7213a2ba3f3f8f6f1f3a428a58ac806bcc893435 # main
+    uses: Novirmor/cvp-cicd/.github/workflows/lint.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
     with:
       cache-paths: |
         ~/.local/share/mise
@@ -26,7 +26,7 @@ jobs:
       contents: read
 
   test:
-    uses: MGconsulting/.github/.github/workflows/test.yml@7213a2ba3f3f8f6f1f3a428a58ac806bcc893435 # main
+    uses: Novirmor/cvp-cicd/.github/workflows/test.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
     with:
       cache-paths: |
         ~/.local/share/mise
@@ -39,6 +39,6 @@ jobs:
       contents: read
 
   security:
-    uses: MGconsulting/.github/.github/workflows/security.yml@7213a2ba3f3f8f6f1f3a428a58ac806bcc893435 # main
+    uses: Novirmor/cvp-cicd/.github/workflows/security.yml@cb1e12f2104317846d982994311f16ac61482a2c # main
     permissions:
       contents: read

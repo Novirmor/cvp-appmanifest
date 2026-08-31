@@ -187,5 +187,5 @@ task security     # gitleaks + zizmor + govulncheck
 task artifact     # reproducible release artifacts + SHA256SUMS
 ```
 
-CI runs the organization `lint`, `test`, and `security` reusable workflows,
+CI runs the `Novirmor/cvp-cicd` `lint`, `test`, and `security` reusable workflows,
 pinned by commit SHA.
