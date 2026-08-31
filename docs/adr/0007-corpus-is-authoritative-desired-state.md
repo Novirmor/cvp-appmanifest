@@ -21,5 +21,5 @@ orphaned Compose projects and stale routers come from.
 
 Deleting a stage from the corpus is a destructive operation, so the executor
 needs a safety workflow around it rather than a silent apply. See
-`infra-ansible/playbooks/offboard.yml`, which retains volumes past a deadline
+`cvp-infra-ansible/playbooks/offboard.yml`, which retains volumes past a deadline
 and destroys them only on explicit request.

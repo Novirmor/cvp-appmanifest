@@ -13,7 +13,7 @@ validated thing can differ.
 - Canonical JSON is a **retained deployment artifact** on the target under
   `/opt/projects/<...>/deployment.json`, root-owned, for reproducibility and
   audit.
-- `infra-ansible` loads canonical JSON with `from_json`; source YAML is never
+- `cvp-infra-ansible` loads canonical JSON with `from_json`; source YAML is never
   reparsed at deploy time.
 - Normalization applies defaults exactly once and is the sole authority for
   defaults.

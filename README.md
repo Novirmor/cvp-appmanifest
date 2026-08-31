@@ -5,7 +5,7 @@ validation CLI, and conformance fixtures.
 
 This repository owns the contract and its validator. It does **not** own
 inventory, credentials, Ansible execution, DNS, or concrete deployment
-definitions — those live in `infra-ansible`, `infra-tf`, and `ansible-collection`
+definitions — those live in `cvp-infra-ansible`, `cvp-infra-tf`, and `cvp-ansible-collection`
 respectively.
 
 ## Layout
@@ -103,7 +103,7 @@ stages:
   any service routed in some stage.
 - **secrets** — stage-level material referenced opaquely and resolved by the
   controller. The reference syntax (e.g. a Bitwarden secret id) is executor
-  policy defined in `infra-ansible`, not part of this format. Consumed two
+  policy defined in `cvp-infra-ansible`, not part of this format. Consumed two
   ways: as environment values (`environment.KEY.secret`) and as
   Docker-secrets-style files mounted at `/run/secrets/<name>` (`mounts`).
   Values never appear in manifests.

@@ -161,7 +161,7 @@
       "required": ["secretRef"],
       "properties": {
         "secretRef": {
-          "description": "Opaque secret reference. The controller (e.g. infra-ansible) defines the reference syntax and resolves it; the shared format only constrains it to a safe, single-line identifier.",
+          "description": "Opaque secret reference. The controller (e.g. cvp-infra-ansible) defines the reference syntax and resolves it; the shared format only constrains it to a safe, single-line identifier.",
           "type": "string",
           "minLength": 1,
           "maxLength": 255,

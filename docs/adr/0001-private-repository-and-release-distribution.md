@@ -5,7 +5,7 @@
 
 ## Context
 
-The format and its validator are consumed by `infra-ansible` and, later, by the
+The format and its validator are consumed by `cvp-infra-ansible` and, later, by the
 executor. Distribution has to work for both a local operator and CI without
 publishing the schema before its secret-reference and routing models are
 deliberately generic.
